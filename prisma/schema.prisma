@@ -1,0 +1,90 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// Ravaa-Note Service — cangkang, ownerId = Ravaa UUID, ShareLink 3-level
+model Notebook {
+  id        String   @id @default(cuid())
+  name      String
+  color     String   @default("#4F8EF7")
+  userId    String // Ravaa UUID plain
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  notes     Note[]
+  @@index([userId, position])
+}
+
+model Note {
+  id         String    @id @default(cuid())
+  title      String
+  content    String    @default("")
+  notebookId String?
+  userId     String // Ravaa UUID
+  isPinned   Boolean   @default(false)
+  tags       String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  notebook   Notebook? @relation(fields: [notebookId], references: [id], onDelete: SetNull)
+  @@index([userId, notebookId])
+  @@index([userId, isPinned])
+}
+
+model TodoList {
+  id        String   @id @default(cuid())
+  name      String
+  color     String   @default("#4F8EF7")
+  userId    String // Ravaa UUID
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  todos     Todo[]
+  @@index([userId, position])
+}
+
+model Todo {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  isCompleted Boolean  @default(false)
+  priority    String   @default("MEDIUM")
+  dueDate     DateTime?
+  listId      String?
+  userId      String // Ravaa UUID
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  list        TodoList? @relation(fields: [listId], references: [id], onDelete: SetNull)
+  @@index([userId, isCompleted])
+  @@index([userId, dueDate])
+  @@index([listId])
+}
+
+model Share {
+  id             String   @id @default(cuid())
+  shareableType  String   // "note" | "notebook" | "todo" | "todoList"
+  shareableId    String
+  sharedById     String // Ravaa UUID
+  sharedWithId   String?
+  shareToken     String?  @unique
+  visibility     String   @default("PRIVATE")
+  permission     String   @default("view")
+  passwordHash   String?
+  maxViews       Int?
+  viewCount      Int      @default(0)
+  allowDownload  Boolean  @default(true)
+  revokedAt      DateTime?
+  expiresAt      DateTime?
+  recipientRemovedAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  @@unique([shareableType, shareableId, sharedWithId])
+  @@index([shareableType, shareableId])
+  @@index([shareToken])
+  @@index([visibility])
+}
