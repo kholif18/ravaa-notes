@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isSecureRequest } from "@/lib/cookie";
 
-const publicPaths = ["/login", "/api/auth/login", "/api/auth/token", "/api/auth/ravaa", "/shared", "/api/shared", "/api/settings", "/office", "/api/wopi"];
+const publicPaths = ["/login", "/api/auth/login", "/api/auth/token", "/api/auth/ravaa", "/shared", "/api/shared", "/s", "/api/shared", "/api/settings", "/office", "/api/wopi"];
 
 async function verifyShellAuth(request: NextRequest): Promise<boolean> {
   // Shell: token ada di cookie ravaa_token atau Authorization Bearer

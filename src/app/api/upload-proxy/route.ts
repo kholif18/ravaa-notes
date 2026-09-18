@@ -1,0 +1,95 @@
+import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+
+async function findOrCreateRavaaNotesFolder(token: string): Promise<string | null> {
+  const svcUrl = "http://localhost:2713";
+  const headers = { Authorization: `Bearer ${token}` } as any;
+  // Cari folder Ravaa Notes di root via /api/files?folderId=root (Drive list API)
+  try {
+    const res = await fetch(`${svcUrl}/api/files?folderId=root`, { headers, cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      const folders = data?.data?.folders || [];
+      const found = folders.find((f: any) => f.name === "Ravaa Notes");
+      if (found) return found.id;
+    }
+  } catch {}
+  // Buat baru
+  try {
+    const res = await fetch(`${svcUrl}/api/folders`, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Ravaa Notes", parentId: null }),
+    });
+    const data = await res.json().catch(() => null);
+    if (res.ok && data?.data?.folder) return data.data.folder.id;
+    if (data?.folder) return data.folder.id;
+  } catch {}
+  return null;
+}
+
+export async function POST(req: NextRequest) {
+  const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
+  let token: string | null = null;
+  if (authHeader?.startsWith("Bearer ")) token = authHeader.slice(7).trim();
+  if (!token) {
+    const cookieHeader = req.headers.get("cookie") || "";
+    const m = cookieHeader.match(/ravaa_token=([^;]+)/);
+    if (m) token = decodeURIComponent(m[1]);
+  }
+  if (!token) {
+    try {
+      const jar: any = await cookies();
+      token = jar.get("ravaa_token")?.value || jar.get("token")?.value || null;
+    } catch {}
+  }
+  if (!token) return NextResponse.json({ success: false, error: "Unauthorized - no token" }, { status: 401 });
+
+  const form = await req.formData();
+  const file = form.get("file") as File | null;
+  const noteId = form.get("noteId") as string | null;
+  if (!file) return NextResponse.json({ success: false, error: "No file" }, { status: 400 });
+
+  const svcUrl = "http://localhost:2713";
+  // Cari/bikin folder Ravaa Notes
+  let folderId: string | null = null;
+  try {
+    folderId = await findOrCreateRavaaNotesFolder(token);
+    // Opsi rapi: sub-folder per note
+    if (folderId && noteId) {
+      // Cek sub folder noteId via /api/files?folderId=xxx
+      const res = await fetch(`${svcUrl}/api/files?folderId=${folderId}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        const folders = data?.data?.folders || [];
+        let sub = folders.find((f: any) => f.name === noteId);
+        if (!sub) {
+          const cr = await fetch(`${svcUrl}/api/folders`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ name: noteId, parentId: folderId }),
+          });
+          const cdata = await cr.json().catch(() => null);
+          sub = cdata?.data?.folder || cdata?.folder;
+        }
+        if (sub?.id) folderId = sub.id;
+      }
+    }
+  } catch {}
+
+  const fd = new FormData();
+  fd.append("file", file, (file as any).name || "upload");
+  if (folderId) fd.append("folderId", folderId);
+
+  const res = await fetch(`${svcUrl}/api/files/upload`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd as any,
+  });
+
+  const text = await res.text();
+  let data: any = null;
+  try { data = text ? JSON.parse(text) : null; } catch { return NextResponse.json({ success: false, error: `Drive response not JSON (${res.status}): ${text.slice(0,200)}` }, { status: 502 }); }
+  if (!res.ok) return NextResponse.json({ success: false, error: data?.error || `Drive ${res.status}` }, { status: res.status });
+  return NextResponse.json(data);
+}
