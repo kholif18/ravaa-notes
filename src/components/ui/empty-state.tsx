@@ -18,16 +18,16 @@ export function EmptyState({ icon, title, description, action, className }: Empt
 
   return (
     <div className={cn("flex flex-col items-center justify-center h-full select-none", className)}>
-      <div className={cn("mb-6 p-6 rounded-2xl", isDark ? "bg-slate-800/50" : "bg-slate-100")}>
-        <div className={cn("text-slate-400", isDark ? "text-slate-500" : "text-slate-400")}>
+      <div className={cn("mb-6 p-6 rounded-2xl", isDark ? "bg-[#1A1A1A]/50" : "bg-slate-100")}>
+        <div className={cn("text-zinc-400", isDark ? "text-zinc-500" : "text-zinc-400")}>
           {icon}
         </div>
       </div>
-      <h3 className={cn("text-lg font-semibold mb-1", isDark ? "text-white" : "text-slate-900")}>
+      <h3 className={cn("text-lg font-semibold mb-1", isDark ? "text-white" : "text-white")}>
         {title}
       </h3>
       {description && (
-        <p className={cn("text-sm text-center max-w-xs", isDark ? "text-slate-400" : "text-slate-500")}>
+        <p className={cn("text-sm text-center max-w-xs", isDark ? "text-zinc-400" : "text-zinc-500")}>
           {description}
         </p>
       )}

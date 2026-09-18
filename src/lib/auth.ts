@@ -1,5 +1,5 @@
 export async function getUserFromRavaa(token: string) {
-  const url = (process.env.RAVAA_SERVICE_URL || "http://localhost:3000").replace(/\/$/, "");
+  const url = (process.env.RAVAA_SERVICE_URL || "http://localhost:2711").replace(/\/$/, "");
   const res = await fetch(`${url}/api/v1/me`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
   if (!res.ok) return null;
   const data = await res.json().catch(() => null);

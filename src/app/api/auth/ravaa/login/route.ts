@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     if (!ravaaUser || !accessToken) {
       return NextResponse.json({ success: false, error: "Invalid response from service" }, { status: 502 });
     }
-    const response = NextResponse.json({ success: true, data: { user: ravaaUser, source: "ravaa" } });
+    const response = NextResponse.json({ success: true, data: { user: ravaaUser, source: "ravaa", accessToken } });
     response.cookies.set("ravaa_token", accessToken, { httpOnly: true, secure: isSecureRequest(request.headers), sameSite: "lax", path: "/", maxAge: 60 * 15 });
     if (refreshToken) {
       response.cookies.set("refreshToken", refreshToken, { httpOnly: true, secure: isSecureRequest(request.headers), sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 7 });

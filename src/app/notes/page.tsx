@@ -1,6 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
-import { Plus, Search, BookOpen, StickyNote, Pin, Trash2, Share2 } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
+import { Plus, Search, BookOpen, StickyNote, Pin, Trash2, Share2, Bold, Italic, Heading1, List, Code, Eye, Edit3, Tag, Star, Image as ImageIcon, Music, LogOut, ArrowRightLeft, FolderInput } from "lucide-react";
+import { MoveNoteDialog } from "@/components/ui/move-note-dialog";
+import { ConfirmDialog, PromptDialog } from "@/components/ui/confirm-dialog";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 export default function NotesPage() {
   const [notes, setNotes] = useState<any[]>([]);
@@ -10,109 +14,539 @@ export default function NotesPage() {
   const [content, setContent] = useState("");
   const [search, setSearch] = useState("");
   const [activeNotebook, setActiveNotebook] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [filterPinned, setFilterPinned] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
+  const [tagsInput, setTagsInput] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [showNewNotebookPrompt, setShowNewNotebookPrompt] = useState(false);
+  const [editingNotebook, setEditingNotebook] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [newNotebookParent, setNewNotebookParent] = useState<string | null>(null);
+  const [moveNote, setMoveNote] = useState<any>(null);
+  const [dragOverNotebook, setDragOverNotebook] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [noteContextMenu, setNoteContextMenu] = useState<{ id: string; x: number; y: number } | null>(null);
 
   async function load() {
-    const token = localStorage.getItem("ravaa_token") || "";
-    const h = { Authorization: `Bearer ${token}` } as any;
+    const q = new URLSearchParams();
+    if (activeNotebook) q.set("notebookId", activeNotebook);
+    if (search) q.set("q", search);
+    if (filterPinned) q.set("pinned", "true");
+    if (showTrash) q.set("trash", "true");
     const [nRes, nbRes] = await Promise.all([
-      fetch("/api/notes", { headers: h }).then(r => r.json()).catch(() => ({ data: { notes: [] } })),
-      fetch("/api/notebooks", { headers: h }).then(r => r.json()).catch(() => ({ data: { lists: [] } })),
+      fetch(`/api/notes?${q}`, { credentials: "include" }).then(r => r.json()).catch(() => ({ data: { notes: [] } })),
+      fetch("/api/notebooks", { credentials: "include" }).then(r => r.json()).catch(() => ({ data: { lists: [] } })),
     ]);
     if (nRes.success) setNotes(nRes.data.notes);
     if (nbRes.success) setNotebooks(nbRes.data.lists);
   }
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [activeNotebook, search, filterPinned, showTrash]);
   useEffect(() => {
-    if (selected) { setTitle(selected.title); setContent(selected.content); }
+    if (selected) { setTitle(selected.title); setContent(selected.content); setTagsInput(selected.tags || ""); }
   }, [selected]);
 
   async function create() {
-    const token = localStorage.getItem("ravaa_token") || "";
-    const res = await fetch("/api/notes", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ title: "Untitled", content: "", notebookId: activeNotebook }) });
+    const res = await fetch("/api/notes", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ title: "Untitled", content: "", notebookId: activeNotebook, tags: "" }) });
     const data = await res.json();
     if (data.success) { load(); setSelected(data.data.note); }
   }
   async function save() {
     if (!selected) return;
-    const token = localStorage.getItem("ravaa_token") || "";
-    await fetch(`/api/notes/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ title, content }) });
+    await fetch(`/api/notes/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ title, content, tags: tagsInput }) });
     load();
   }
+
+  function toggleTaskInPreview(index: number) {
+    const lines = content.split("\n");
+    let taskIdx = -1;
+    const newLines = lines.map((line) => {
+      if (/^\s*- \[[ x]\]/i.test(line)) {
+        taskIdx++;
+        if (taskIdx === index) {
+          if (/^\s*- \[ \]/i.test(line)) return line.replace(/\[ \]/, "[x]");
+          else return line.replace(/\[x\]/i, "[ ]");
+        }
+      }
+      return line;
+    });
+    const newContent = newLines.join("\n");
+    setContent(newContent);
+    // auto save
+    setTimeout(async () => {
+      if (selected) {
+        await fetch(`/api/notes/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ content: newContent }) });
+        load();
+      }
+    }, 100);
+  }
+
+  async function handleImageInsert() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*,audio/*";
+    input.onchange = async (e: any) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const form = new FormData();
+      form.append("file", file);
+      // Upload to Drive (port 2713) — cross-port, use Authorization header from localStorage
+      try {
+        const token = localStorage.getItem("ravaa_token") || "";
+        const res = await fetch("http://localhost:2713/api/files/upload", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: form,
+        });
+        const data = await res.json();
+        if (data.success && data.data?.file) {
+          const url = `http://localhost:2713/api/files/${data.data.file.id}/raw`;
+          const md = file.type.startsWith("audio/") ? `[${file.name}](${url})` : `![${file.name}](${url})`;
+          insertAtCursor("\n" + md + "\n", "");
+        } else {
+          alert("Upload gagal: " + (data.error || "unknown"));
+        }
+      } catch (err: any) {
+        alert("Upload error: " + err.message);
+      }
+    };
+    input.click();
+  }
   async function del(id: string) {
-    const token = localStorage.getItem("ravaa_token") || "";
-    await fetch(`/api/notes/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    await fetch(`/api/notes/${id}`, { method: "DELETE", credentials: "include" });
     setSelected(null); load();
   }
 
-  const filtered = notes.filter(n => {
-    if (activeNotebook && n.notebookId !== activeNotebook) return false;
-    if (search && !n.title.toLowerCase().includes(search.toLowerCase()) && !n.content.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
+  async function handleMove(note: any, targetNotebookId: string | null) {
+    await fetch(`/api/notes/${note.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ notebookId: targetNotebookId }) });
+    setMoveNote(null);
+    // Update selected if it's the moved note
+    if (selected?.id === note.id) setSelected({ ...selected, notebookId: targetNotebookId });
+    load();
+  }
+
+  function handleDragStart(e: React.DragEvent, noteId: string) {
+    e.dataTransfer.setData("text/plain", noteId);
+    e.dataTransfer.effectAllowed = "move";
+  }
+
+  function handleNotebookDragOver(e: React.DragEvent, notebookId: string | null) {
+    e.preventDefault();
+    setDragOverNotebook(notebookId || "root");
+  }
+
+  function handleNotebookDrop(e: React.DragEvent, notebookId: string | null) {
+    e.preventDefault();
+    setDragOverNotebook(null);
+    const noteId = e.dataTransfer.getData("text/plain");
+    const notebookIdDrag = e.dataTransfer.getData("text/notebook");
+    if (notebookIdDrag) {
+      handleNotebookMove(notebookIdDrag, notebookId);
+      return;
+    }
+    if (!noteId) return;
+    const note = notes.find((n: any) => n.id === noteId);
+    if (note) handleMove(note, notebookId);
+  }
+  async function restore(id: string) {
+    await fetch(`/api/notes/${id}/restore`, { method: "POST", credentials: "include" });
+    load();
+  }
+  async function permanentDel(id: string) {
+    await fetch(`/api/notes/${id}/permanent`, { method: "DELETE", credentials: "include" });
+    setSelected(null); setConfirmDelete(null); load();
+  }
+  async function togglePin(n: any) {
+    await fetch(`/api/notes/${n.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ isPinned: !n.isPinned }) });
+    load();
+  }
+
+  function insertAtCursor(before: string, after: string = "") {
+    const textarea = document.getElementById("note-content") as HTMLTextAreaElement;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = content.substring(start, end) || "text";
+    const newContent = content.substring(0, start) + before + selectedText + after + content.substring(end);
+    setContent(newContent);
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + before.length, start + before.length + selectedText.length);
+    }, 0);
+  }
+
+  const filtered = useMemo(() => notes, [notes]);
+
+  // Build notebook tree
+  const tree = useMemo(() => {
+    const map = new Map<string, any>();
+    notebooks.forEach((nb: any) => map.set(nb.id, { ...nb, children: [] }));
+    const roots: any[] = [];
+    notebooks.forEach((nb: any) => {
+      if (nb.parentId && map.has(nb.parentId)) map.get(nb.parentId).children.push(map.get(nb.id));
+      else roots.push(map.get(nb.id));
+    });
+    return roots;
+  }, [notebooks]);
+
+  function toggleExpand(id: string) {
+    const next = new Set(expanded);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setExpanded(next);
+  }
+
+  function renderNotebook(nbs: any[], depth = 0) {
+    return nbs.map((nb: any) => {
+      const hasChildren = nb.children && nb.children.length > 0;
+      const isExpanded = expanded.has(nb.id) || depth === 0;
+      const isActive = activeNotebook === nb.id;
+      return (
+      <div key={nb.id} style={{ marginLeft: depth * 12 }}>
+        <div
+          onDragOver={(e) => handleNotebookDragOver(e, nb.id)}
+          onDragLeave={() => setDragOverNotebook(null)}
+          onDrop={(e) => handleNotebookDrop(e, nb.id)}
+          onDragOverCapture={(e) => e.preventDefault()}
+          className={`rounded flex items-center gap-1 ${dragOverNotebook===nb.id ? "ring-2 ring-zinc-500/20 bg-zinc-800/20" : ""}`}
+        >
+          <button onClick={(e) => { e.stopPropagation(); if (hasChildren) toggleExpand(nb.id); }} className={`w-4 h-4 flex items-center justify-center shrink-0 -ml-1 bg-transparent ${hasChildren ? "text-zinc-400 hover:text-white" : "invisible"}`}>
+            <span className={`inline-block transition-transform text-[10px] ${isExpanded ? "rotate-90" : ""}`}>▶</span>
+          </button>
+          {editingNotebook === nb.id ? (
+            <input
+              autoFocus
+              value={editingName}
+              onChange={(e) => setEditingName(e.target.value)}
+              onKeyDown={async (e) => {
+                if (e.key === "Enter") {
+                  if (editingName.trim()) {
+                    await fetch(`/api/notebooks/${nb.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ name: editingName.trim() }) });
+                    load();
+                  }
+                  setEditingNotebook(null);
+                } else if (e.key === "Escape") {
+                  setEditingNotebook(null);
+                }
+              }}
+              onBlur={() => setEditingNotebook(null)}
+              className="flex-1 px-2 py-1 text-sm bg-[#1A1A1A] border border-blue-500 rounded text-white"
+              placeholder="Nama notebook"
+            />
+          ) : (
+            <button
+              onClick={() => setActiveNotebook(nb.id)}
+              onContextMenu={(e) => { e.preventDefault(); setContextMenu({ id: nb.id, x: e.clientX, y: e.clientY }); }}
+              draggable
+              onDragStart={(e) => { e.dataTransfer.setData("text/notebook", nb.id); e.stopPropagation(); }}
+              className={`flex-1 text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${isActive ? "bg-blue-600 text-white" : "hover:bg-[#1A1A1A] text-zinc-300"}`}
+            >
+              <span className="w-2 h-2 rounded-full shrink-0 ml-0" style={{background: nb.color}}></span>
+              <span className="truncate flex-1">{nb.name}</span>
+            {(() => { const c = notes.filter((n:any) => n.notebookId === nb.id).length; return c > 0 ? <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.12] text-zinc-300 border border-white/10">{c}</span> : null; })()}
+              {nb.children?.length > 0 && <span className="text-[10px] px-1 rounded bg-[#232323]">{nb.children.length}</span>}
+            </button>
+          )}
+        </div>
+        {hasChildren && isExpanded && <div className="mt-1 border-l border-white/[0.04]/50 ml-2 pl-1">{renderNotebook(nb.children, depth+1)}</div>}
+      </div>
+    )});
+  }
+
+  async function handleNotebookMove(draggedId: string, targetId: string | null) {
+    if (draggedId === targetId) return;
+    if (targetId) {
+      const target = notebooks.find((n:any)=>n.id===targetId) as any;
+      if (target?.parentId) {
+        const grandparent = notebooks.find((n:any)=>n.id===target.parentId);
+        if (grandparent?.parentId) { alert("Cannot move into a sub-notebook"); return; }
+      }
+    }
+    // Prevent moving into own descendant
+    const isDescendant = (nodes: any[], target: string, dragged: string): boolean => {
+      for (const n of nodes) {
+        if (n.id === target) {
+          // check if dragged is ancestor of target
+          const find = (list: any[], id: string): any => {
+            for (const it of list) {
+              if (it.id === id) return it;
+              const f = it.children ? find(it.children, id) : null;
+              if (f) return f;
+            }
+            return null;
+          };
+          const draggedNode = find(notebooks, dragged);
+          if (draggedNode) {
+            const contains = (node: any, tid: string): boolean => {
+              if (node.id === tid) return true;
+              return node.children?.some((c: any) => contains(c, tid)) || false;
+            };
+            if (contains(draggedNode, target)) return true;
+          }
+        }
+        if (n.children) if (isDescendant(n.children, target, dragged)) return true;
+      }
+      return false;
+    };
+    if (targetId && isDescendant(notebooks, targetId, draggedId)) {
+      alert("Tidak bisa pindah ke dalam diri sendiri");
+      return;
+    }
+    await fetch(`/api/notebooks`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ id: draggedId, parentId: targetId }) });
+    load();
+  }
 
   return (
-    <div className="min-h-screen flex bg-slate-950 text-white">
-      {/* Sidebar notebooks */}
-      <div className="w-64 border-r border-slate-800 p-4 hidden md:block">
-        <h2 className="font-semibold flex items-center gap-2"><BookOpen className="w-4 h-4" /> Notebooks</h2>
-        <button onClick={() => setActiveNotebook(null)} className={`w-full text-left mt-2 px-2 py-1.5 rounded text-sm ${!activeNotebook ? "bg-blue-600" : "hover:bg-slate-800"}`}>All Notes</button>
-        {notebooks.map((nb: any) => (
-          <button key={nb.id} onClick={() => setActiveNotebook(nb.id)} className={`w-full text-left mt-1 px-2 py-1.5 rounded text-sm flex items-center gap-2 ${activeNotebook===nb.id ? "bg-blue-600" : "hover:bg-slate-800"}`}>
-            <span className="w-2 h-2 rounded-full" style={{background: nb.color}}></span>{nb.name}
-          </button>
-        ))}
-        <button onClick={async () => {
-          const name = prompt("Nama notebook");
-          if (!name) return;
-          const token = localStorage.getItem("ravaa_token") || "";
-          await fetch("/api/notebooks", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ name }) });
-          load();
-        }} className="mt-4 w-full px-2 py-1.5 text-xs bg-slate-800 rounded hover:bg-slate-700 flex items-center gap-1 justify-center"><Plus className="w-3 h-3" /> New Notebook</button>
+    <div className="min-h-screen flex flex-col bg-[#0A0A0A] text-white">
+      <div className="h-11 border-b border-white/[0.02] flex items-center justify-between px-3 glass-strong">
+        <span className="font-semibold">Ravaa Notes</span>
+        <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST", credentials: "include" }); try { localStorage.removeItem("ravaa_token"); } catch {} ; location.href = "/login"; }} className="text-xs px-3 py-1.5 rounded bg-[#1A1A1A] hover:bg-[#232323] flex items-center gap-1"><LogOut className="w-3 h-3" /> Logout</button>
+      </div>
+      <div className="flex flex-1 overflow-hidden">
+      <div className="w-60 border-r border-white/[0.02] p-3 hidden md:flex flex-col glass">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold flex items-center gap-2"><BookOpen className="w-4 h-4" /> Notebooks</h2>
+          <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST", credentials: "include" }); try { localStorage.removeItem("ravaa_token"); } catch {} ; location.href = "/login"; }} className="p-1.5 text-zinc-400 hover:text-white hover:bg-[#1A1A1A] rounded" title="Logout"><LogOut className="w-4 h-4" /></button>
+        </div>
+        <div
+          onDragOver={(e) => handleNotebookDragOver(e, null)}
+          onDragLeave={() => setDragOverNotebook(null)}
+          onDrop={(e) => handleNotebookDrop(e, null)}
+          className={`rounded ${dragOverNotebook==="root" ? "ring-2 ring-zinc-500/20 bg-zinc-800/20" : ""}`}
+        >
+          <button onClick={() => setActiveNotebook(null)} className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${!activeNotebook ? "bg-blue-600 text-white" : "hover:bg-[#1A1A1A] text-zinc-300"}`}><span>All Notes</span><span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-white/10 text-zinc-400">{notes.length}</span></button>
+        </div>
+        <div className="mt-2 space-y-1 flex-1 overflow-auto">
+          {tree.length===0 ? <p className="text-xs text-zinc-500">No notebooks</p> : renderNotebook(tree)}
+        </div>
+        <button onClick={() => setShowNewNotebookPrompt(true)} className="mt-4 w-full px-2 py-1.5 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323] flex items-center gap-1 justify-center"><Plus className="w-3 h-3" /> New Notebook</button>
+        <div className="mt-2">
+          <button onClick={() => setShowTrash(!showTrash)} className={`w-full px-2 py-1.5 rounded text-xs flex items-center gap-1 ${showTrash ? "bg-red-600 text-white" : "bg-[#1A1A1A] text-zinc-300 hover:bg-[#232323]"}`}><Trash2 className="w-3 h-3" /> {showTrash ? "Trash" : "Trash"}</button>
+        </div>
+        <div className="mt-4 pt-4 border-t border-white/[0.03]">
+          <button onClick={() => setFilterPinned(!filterPinned)} className={`w-full px-2 py-1.5 rounded text-xs flex items-center gap-1 font-medium ${filterPinned ? "bg-blue-600 text-white" : "bg-[#1A1A1A] text-zinc-300 hover:bg-[#232323] hover:text-white"}`}><Star className="w-3 h-3" /> {filterPinned ? "★ Pinned" : "☆ All Notes"}</button>
+        </div>
       </div>
 
-      {/* List */}
-      <div className="w-80 border-r border-slate-800 flex flex-col">
-        <div className="p-3 border-b border-slate-800 flex gap-2">
+      <div className="w-72 border-r border-white/[0.02] flex flex-col glass">
+        {activeNotebook && (() => {
+          const findPath = (nodes: any[], target: string, path: any[] = []): any[] | null => {
+            for (const n of nodes) {
+              const np = [...path, n];
+              if (n.id === target) return np;
+              if (n.children) {
+                const r = findPath(n.children, target, np);
+                if (r) return r;
+              }
+            }
+            return null;
+          };
+          const path = findPath(tree, activeNotebook);
+          if (!path) return null;
+          return (
+            <div className="px-3 py-2 border-b border-white/[0.02] flex items-center gap-1 text-xs overflow-auto">
+              <button onClick={() => setActiveNotebook(null)} className="hover:text-white text-zinc-400">All</button>
+              {path.map((p: any) => (
+                <span key={p.id} className="flex items-center gap-1">
+                  <span className="text-zinc-400">/</span>
+                  <button onClick={() => setActiveNotebook(p.id)} className={`${p.id===activeNotebook ? "text-blue-400 font-medium" : "text-zinc-400 hover:text-white"}`}>{p.name}</button>
+                </span>
+              ))}
+            </div>
+          );
+        })()}
+        <div className="p-3 border-b border-white/[0.02] flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500" />
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search..." className="w-full pl-7 pr-2 py-1.5 text-sm bg-slate-900 border border-slate-700 rounded" />
+            <input value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>{ if (e.key==='Escape') setSearch(""); }} placeholder="Search title/content..." className="w-full pl-7 pr-7 py-1.5 text-sm bg-[#141414] border border-white/[0.04] rounded" />
+            {search && (
+              <button onClick={() => setSearch("")} className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white">
+                <span className="w-3 h-3 flex items-center justify-center">×</span>
+              </button>
+            )}
           </div>
           <button onClick={create} className="p-1.5 bg-blue-600 rounded hover:bg-blue-700"><Plus className="w-4 h-4" /></button>
         </div>
         <div className="flex-1 overflow-auto">
-          {filtered.length===0 ? <p className="p-4 text-sm text-slate-500">No notes</p> : filtered.map((n:any)=>(
-            <div key={n.id} onClick={()=>setSelected(n)} className={`p-3 border-b border-slate-800 cursor-pointer hover:bg-slate-900 ${selected?.id===n.id ? "bg-slate-800" : ""}`}>
-              <p className="text-sm font-medium flex items-center gap-1">{n.isPinned && <Pin className="w-3 h-3 text-amber-400" />}{n.title || "Untitled"}</p>
-              <p className="text-xs text-slate-400 truncate">{n.content?.slice(0,60) || "No content"}</p>
+          {filtered.length===0 ? <p className="p-4 text-sm text-zinc-500">{showTrash ? "Trash kosong" : "No notes"}</p> : filtered.map((n:any)=>(
+            <div key={n.id} draggable onDragStart={(e)=>handleDragStart(e, n.id)} onClick={()=>setSelected(n)} onContextMenu={(e)=>{e.preventDefault(); e.stopPropagation(); setNoteContextMenu({ id: n.id, x: e.clientX, y: e.clientY });}} className={`p-2.5 border-b border-white/[0.02] cursor-pointer hover:bg-white/5 ${selected?.id===n.id ? "bg-white/10" : ""}`}>
+              <p className="text-sm font-medium flex items-center gap-1">{n.isPinned && <Pin className="w-3 h-3 text-blue-400" />}{n.title || "Untitled"}{n.tags && <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-[#232323] text-zinc-300 flex items-center gap-0.5"><Tag className="w-2 h-2" />{n.tags.split(",")[0]}</span>}</p>
+              <div className="text-xs text-zinc-400 truncate line-clamp-2 leading-tight prose prose-invert prose-p:m-0 prose-strong:text-zinc-200 prose-em:text-zinc-300 prose-code:text-amber-300 prose-a:text-blue-400 max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ p: ({children}) => <span>{children}</span>, strong: ({children}) => <strong>{children}</strong>, em: ({children}) => <em>{children}</em>, code: ({children}) => <code>{children}</code>, a: ({children}) => <span>{children}</span>, h1: ({children}) => <span>{children}</span>, h2: ({children}) => <span>{children}</span>, h3: ({children}) => <span>{children}</span>, ul: ({children}) => <span>{children}</span>, ol: ({children}) => <span>{children}</span>, li: ({children}) => <span>{children} </span>, blockquote: ({children}) => <span>{children}</span> }}>
+                  {(n.content?.slice(0,100) || "No content").replace(/^#\s+/gm, "").replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1").replace(/`(.*?)`/g, "$1")}
+                </ReactMarkdown>
+              </div>
+              <div className="flex gap-1 mt-1">
+                {showTrash ? (
+                  <>
+                    <button onClick={(e)=>{e.stopPropagation(); restore(n.id);}} className="text-[10px] px-1 py-0.5 rounded bg-green-700 hover:bg-green-600 text-white">Restore</button>
+                    <button onClick={(e)=>{e.stopPropagation(); setConfirmDelete(n.id);}} className="text-[10px] px-1 py-0.5 rounded bg-red-700 hover:bg-red-600 text-white">Delete permanently</button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={(e)=>{e.stopPropagation(); togglePin(n);}} className="text-[10px] px-1 py-0.5 rounded bg-[#232323] hover:bg-[#2a2a2a]">{n.isPinned ? "Unpin" : "Pin"}</button>
+                    <button onClick={(e)=>{e.stopPropagation(); del(n.id);}} className="text-[10px] px-1 py-0.5 rounded bg-red-900/50 hover:bg-red-900 text-red-300">Delete</button>
+                  </>
+                )}
+              </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Editor */}
       <div className="flex-1 flex flex-col">
         {selected ? (
           <>
-            <div className="p-3 border-b border-slate-800 flex items-center gap-2">
-              <input value={title} onChange={e=>setTitle(e.target.value)} className="flex-1 px-2 py-1.5 text-sm bg-slate-900 border border-slate-700 rounded font-medium" placeholder="Title" />
+            <div className="p-3 border-b border-white/[0.02] flex flex-wrap items-center gap-2">
+              <input value={title} onChange={e=>setTitle(e.target.value)} className="flex-1 min-w-[150px] px-2 py-1.5 text-sm bg-[#141414] border border-white/[0.04] rounded font-medium" placeholder="Title" />
+              <input value={tagsInput} onChange={e=>setTagsInput(e.target.value)} placeholder="tags, comma" className="w-32 px-2 py-1.5 text-xs bg-[#141414] border border-white/[0.04] rounded" />
               <button onClick={save} className="px-3 py-1.5 text-xs bg-blue-600 rounded hover:bg-blue-700">Save</button>
-              <button onClick={()=>del(selected.id)} className="p-1.5 text-slate-400 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+              <button onClick={()=>setMoveNote(selected)} className="p-1.5 text-zinc-400 hover:text-blue-400" title="Pindah notebook"><FolderInput className="w-4 h-4" /></button>
+              <button onClick={()=>del(selected.id)} className="p-1.5 text-zinc-400 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
               <button onClick={async () => {
-                const token = localStorage.getItem("ravaa_token") || "";
-                const res = await fetch("/api/share", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ shareableType: "note", shareableId: selected.id, visibility: "LINK", permission: "view" }) });
+                const res = await fetch("/api/share", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ shareableType: "note", shareableId: selected.id, visibility: "LINK", permission: "view" }) });
                 const data = await res.json();
                 if (data.success) { const url = `${location.origin}/s/${data.data.share.shareToken}`; await navigator.clipboard.writeText(url); alert("Link copied: " + url); }
-              }} className="p-1.5 text-slate-400 hover:text-white"><Share2 className="w-4 h-4" /></button>
+              }} className="p-1.5 text-zinc-400 hover:text-white"><Share2 className="w-4 h-4" /></button>
+              <button onClick={()=>setShowPreview(!showPreview)} className={`p-1.5 rounded ${showPreview ? "bg-blue-600 text-white" : "text-zinc-400 hover:text-white"}`}>{showPreview ? <Edit3 className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
             </div>
-            <textarea value={content} onChange={e=>setContent(e.target.value)} placeholder="Write markdown..." className="flex-1 p-4 bg-slate-950 text-sm font-mono resize-none focus:outline-none" />
+            <div className="px-2 py-1.5 border-b border-white/[0.02] flex flex-wrap gap-1 glass">
+              <button onClick={()=>insertAtCursor("**", "**")} title="Bold" className="px-2 py-1 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323] flex items-center gap-1"><Bold className="w-3 h-3" /> Bold</button>
+              <button onClick={()=>insertAtCursor("*", "*")} title="Italic" className="px-2 py-1 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323] flex items-center gap-1"><Italic className="w-3 h-3" /> Italic</button>
+              <button onClick={()=>insertAtCursor("~~", "~~")} title="Strikethrough" className="px-2 py-1 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323]">S̶</button>
+              <button onClick={()=>insertAtCursor("# ", "")} title="H1" className="px-2 py-1 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323] flex items-center gap-1"><Heading1 className="w-3 h-3" /> H1</button>
+              <button onClick={()=>insertAtCursor("## ", "")} title="H2" className="px-2 py-1 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323]">H2</button>
+              <button onClick={()=>insertAtCursor("### ", "")} title="H3" className="px-2 py-1 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323]">H3</button>
+              <button onClick={()=>insertAtCursor("- ", "")} title="List" className="px-2 py-1 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323] flex items-center gap-1"><List className="w-3 h-3" /> List</button>
+              <button onClick={()=>insertAtCursor("- [ ] ", "")} title="Task" className="px-2 py-1 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323]">☐ Task</button>
+              <button onClick={()=>insertAtCursor("> ", "")} title="Quote" className="px-2 py-1 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323]">❝ Quote</button>
+              <button onClick={()=>insertAtCursor("[", "](url)")} title="Link" className="px-2 py-1 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323]">Link</button>
+              <button onClick={()=>insertAtCursor("\n---\n", "")} title="HR" className="px-2 py-1 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323]">— HR</button>
+              <button onClick={()=>insertAtCursor("```\n", "\n```")} title="Code" className="px-2 py-1 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323] flex items-center gap-1"><Code className="w-3 h-3" /> Code</button>
+              <button onClick={handleImageInsert} title="Image/Audio" className="px-2 py-1 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323] flex items-center gap-1"><ImageIcon className="w-3 h-3" /> Image</button>
+              <button onClick={()=>{document.execCommand("undo")}} title="Undo" className="px-2 py-1 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323]">↩ Undo</button>
+              <button onClick={()=>{document.execCommand("redo")}} title="Redo" className="px-2 py-1 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323]">↪ Redo</button>
+            </div>
+            {showPreview ? (
+              <div className="flex-1 p-4 overflow-auto prose prose-invert max-w-none bg-[#0A0A0A] prose-pre:bg-[#141414] prose-code:text-amber-300 prose-a:text-blue-400 prose-headings:text-white prose-strong:text-white prose-blockquote:border-l-blue-500">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    a: ({ children, href, ...props }: any) => (
+                      <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>
+                    ),
+                    img: ({ src, alt, ...props }: any) => (
+                      <img src={src} alt={alt} {...props} className="max-w-full rounded-lg border border-white/[0.04]" loading="lazy" />
+                    ),
+                    code: ({ children, className, ...props }: any) => {
+                      const isInline = !className;
+                      return isInline ? (
+                        <code className="bg-[#1A1A1A] text-amber-300 px-1 py-0.5 rounded text-sm" {...props}>{children}</code>
+                      ) : (
+                        <div className="relative group">
+                          <pre className="bg-[#141414] p-3 rounded-lg overflow-auto"><code className={className} {...props}>{children}</code></pre>
+                          <button onClick={() => navigator.clipboard.writeText(String(children))} className="absolute top-2 right-2 px-2 py-1 text-xs bg-[#232323] hover:bg-[#2a2a2a] rounded opacity-0 group-hover:opacity-100">Copy</button>
+                        </div>
+                      );
+                    },
+                    blockquote: ({ children, ...props }: any) => (
+                      <blockquote className="border-l-4 border-blue-500 pl-4 italic text-zinc-300" {...props}>{children}</blockquote>
+                    ),
+                    input: (props: any) => {
+                      if (props.type === "checkbox") {
+                        return (
+                          <input
+                            type="checkbox"
+                            checked={props.checked}
+                            onChange={(e) => {
+                              const checkboxes = Array.from(document.querySelectorAll('.prose input[type="checkbox"]'));
+                              const idx = checkboxes.indexOf(e.target as any);
+                              toggleTaskInPreview(idx >= 0 ? idx : 0);
+                            }}
+                            className="mr-2 accent-blue-500"
+                          />
+                        );
+                      }
+                      return <input {...props} />;
+                    },
+                  }}
+                >
+                  {content || "*No content*"}
+                </ReactMarkdown>
+                <p className="text-xs text-zinc-500 mt-4">Tip: klik checkbox di atas untuk toggle tanpa masuk edit</p>
+              </div>
+            ) : (
+              <textarea id="note-content" value={content} onChange={e=>setContent(e.target.value)} placeholder="Write markdown... (support **bold**, *italic*, # heading, - list, ```code```, - [ ] task)" className="flex-1 p-4 bg-[#0A0A0A] text-sm font-mono resize-none focus:outline-none" />
+            )}
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-500">
+          <div className="flex-1 flex flex-col items-center justify-center text-zinc-500">
             <StickyNote className="w-12 h-12 mb-2 opacity-20" />
             <p>Select a note or create new</p>
+            <p className="text-xs mt-1">Joplin-style: notebooks, tags, pin, search, markdown toolbar, preview</p>
           </div>
         )}
       </div>
+      </div>
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Permanently delete?"
+        description="This note will be permanently deleted and cannot be restored."
+        confirmText="Delete permanently"
+        variant="danger"
+        onConfirm={() => confirmDelete && permanentDel(confirmDelete)}
+        onCancel={() => setConfirmDelete(null)}
+      />
+      <PromptDialog
+        open={showNewNotebookPrompt}
+        title="New notebook name"
+        placeholder="e.g. Work, Personal"
+        onSubmit={async (name: string) => {
+          const parentId = newNotebookParent || activeNotebook || null;
+          if (parentId) {
+            const parent = notebooks.find((n:any)=>n.id===parentId) as any;
+            if (parent?.parentId) {
+              const gp = notebooks.find((n:any)=>n.id===parent.parentId);
+              if (gp?.parentId) { alert("Maximum depth"); return; }
+            }
+          }
+          const res = await fetch("/api/notebooks", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ name, parentId }) });
+          const data = await res.json();
+          if (!res.ok) alert(data.error || "Gagal");
+          setShowNewNotebookPrompt(false);
+          setNewNotebookParent(null);
+          load();
+        }}
+        onCancel={() => { setShowNewNotebookPrompt(false); setNewNotebookParent(null); }}
+      />
+      <MoveNoteDialog
+        open={!!moveNote}
+        noteTitle={moveNote?.title || "Untitled"}
+        notebooks={notebooks}
+        activeNotebookId={activeNotebook}
+        currentNotebookId={moveNote?.notebookId || null}
+        onMove={(targetId) => moveNote && handleMove(moveNote, targetId)}
+        onCancel={() => setMoveNote(null)}
+      />
+      {contextMenu && (
+        <div className="fixed z-50 bg-[#1A1A1A] border border-white/[0.04] rounded-lg shadow-xl py-1 min-w-[180px]" style={{ left: contextMenu.x, top: contextMenu.y }} onMouseLeave={() => setContextMenu(null)}>
+          <button onClick={() => { const nb = notebooks.find((n:any)=>n.id===contextMenu.id); if (nb) { setEditingName(nb.name); setEditingNotebook(nb.id); } setContextMenu(null); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-[#232323]">Rename</button>
+          <button onClick={() => { const target = notebooks.find((n:any)=>n.id===contextMenu.id) as any; if (target?.parentId) { const gp = notebooks.find((n:any)=>n.id===target.parentId); if (gp?.parentId) { alert("Maximum depth"); return; } } setNewNotebookParent(contextMenu.id); setShowNewNotebookPrompt(true); setContextMenu(null); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-[#232323]">New Sub-notebook</button>
+          <button onClick={async () => { if (!confirm("Hapus notebook? Note di dalamnya jadi All Notes")) return; await fetch(`/api/notebooks/${contextMenu.id}`, { method: "DELETE", credentials: "include" }); setContextMenu(null); load(); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-red-900/50 text-red-400">Delete</button>
+        </div>
+      )}
+      {contextMenu && <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} />}
+      {noteContextMenu && (
+        <div className="fixed z-50 bg-[#1A1A1A] border border-white/[0.04] rounded-xl shadow-2xl py-1 min-w-[180px]" style={{ left: noteContextMenu.x, top: noteContextMenu.y }}>
+          <button onClick={() => { const n = notes.find((x:any)=>x.id===noteContextMenu.id); if (n) togglePin(n); setNoteContextMenu(null); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-white/10 flex items-center gap-2"><Pin className="w-3 h-3" /> {notes.find((x:any)=>x.id===noteContextMenu.id)?.isPinned ? "Unpin" : "Pin"}</button>
+          <button onClick={() => { const n = notes.find((x:any)=>x.id===noteContextMenu.id); if (n) setMoveNote(n); setNoteContextMenu(null); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-white/10 flex items-center gap-2"><FolderInput className="w-3 h-3" /> Pindah</button>
+          <button onClick={() => { const n = notes.find((x:any)=>x.id===noteContextMenu.id); if (n) { setSelected(n); setTimeout(async () => { const res = await fetch("/api/share", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ shareableType: "note", shareableId: n.id, visibility: "LINK", permission: "view" }) }); const data = await res.json(); if (data.success) { const url = `${location.origin}/s/${data.data.share.shareToken}`; await navigator.clipboard.writeText(url); alert("Link copied: " + url); } }, 100); } setNoteContextMenu(null); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-white/10 flex items-center gap-2"><Share2 className="w-3 h-3" /> Share LINK</button>
+          <div className="h-px bg-white/5 my-1" />
+          <button onClick={() => { const n = notes.find((x:any)=>x.id===noteContextMenu.id); if (n) { if (showTrash) permanentDel(n.id); else del(n.id); } setNoteContextMenu(null); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-red-900/50 text-red-400 flex items-center gap-2"><Trash2 className="w-3 h-3" /> {showTrash ? "Hapus permanen" : "Hapus"}</button>
+        </div>
+      )}
+      {noteContextMenu && <div className="fixed inset-0 z-40" onClick={() => setNoteContextMenu(null)} />}
     </div>
   );
 }

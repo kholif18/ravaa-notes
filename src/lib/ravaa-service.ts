@@ -43,7 +43,7 @@ export function getRavaaServiceConfig(): RavaaServiceConfig {
   const clientSecret = process.env.RAVAA_CLIENT_SECRET?.trim();
 
   if (!url) {
-    throw new Error("RAVAA_SERVICE_URL is not set. Set it in .env (e.g. http://localhost:3000)");
+    throw new Error("RAVAA_SERVICE_URL is not set. Set it in .env (e.g. http://localhost:2711)");
   }
   if (!clientId) {
     throw new Error("RAVAA_CLIENT_ID is not set. Register application via Ravaa Service first.");

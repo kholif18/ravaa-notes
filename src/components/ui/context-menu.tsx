@@ -52,7 +52,7 @@ function MenuPanel({
         className={cn(
           "fixed z-[100] w-36 rounded-xl py-1.5 border backdrop-blur-xl",
           isDark
-            ? "bg-slate-800/70 border-slate-700/50 shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
+            ? "bg-[#1A1A1A]/70 border-white/[0.04]/50 shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
             : "bg-white/70 border-slate-200/50 shadow-[0_8px_32px_rgba(0,0,0,0.12)]",
           className
         )}
@@ -192,8 +192,8 @@ export function ContextMenuItem({ onClick, children, variant = "default", classN
         variant === "danger"
           ? "text-red-400 hover:bg-red-500/10"
           : isDark
-          ? "text-slate-300 hover:bg-white/10"
-          : "text-slate-600 hover:bg-black/5",
+          ? "text-zinc-300 hover:bg-white/10"
+          : "text-zinc-400 hover:bg-black/5",
         className
       )}
     >

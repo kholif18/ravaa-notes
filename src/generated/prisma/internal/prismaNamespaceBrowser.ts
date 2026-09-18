@@ -76,6 +76,7 @@ export const NotebookScalarFieldEnum = {
   name: 'name',
   color: 'color',
   userId: 'userId',
+  parentId: 'parentId',
   position: 'position',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
@@ -91,6 +92,7 @@ export const NoteScalarFieldEnum = {
   notebookId: 'notebookId',
   userId: 'userId',
   isPinned: 'isPinned',
+  isTrashed: 'isTrashed',
   tags: 'tags',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'

@@ -131,6 +131,9 @@ export function LoginForm() {
         setError(data.error || "Login failed");
         return;
       }
+      if ((data as any).data?.accessToken) {
+        try { localStorage.setItem("ravaa_token", (data as any).data.accessToken); } catch {}
+      }
       router.replace(from);
       router.refresh();
     } catch {
@@ -144,8 +147,8 @@ export function LoginForm() {
     "w-full rounded-xl border pl-11 pr-4 py-3 text-sm transition-all duration-200",
     "focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-500",
     isDark
-      ? "bg-slate-900/60 border-slate-700/60 text-white placeholder-slate-500"
-      : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"
+      ? "bg-[#141414]/60 border-white/[0.04]/60 text-white placeholder-zinc-500"
+      : "bg-white border-slate-200 text-white placeholder-zinc-500"
   );
   const inputError = "border-red-500 focus:border-red-500 focus:ring-red-500/60";
 
@@ -153,7 +156,7 @@ export function LoginForm() {
     <div
       className={cn(
         "w-full rounded-2xl sm:rounded-3xl border p-6 sm:p-8 shadow-xl backdrop-blur-xl",
-        isDark ? "bg-slate-900/70 border-slate-700/50 shadow-black/30" : "bg-white/80 border-slate-200/60 shadow-slate-200/60"
+        isDark ? "bg-[#141414]/70 border-white/[0.04]/50 shadow-black/30" : "bg-white/80 border-slate-200/60 shadow-slate-200/60"
       )}
     >
       <div className="mb-6 flex flex-col items-center gap-3 lg:hidden">
@@ -167,19 +170,19 @@ export function LoginForm() {
           )}
         </div>
         <div className="text-center">
-          <h1 className={cn("text-xl font-bold", isDark ? "text-white" : "text-slate-900")}>{appName}</h1>
-          <p className={cn("text-sm mt-0.5", isDark ? "text-slate-400" : "text-slate-500")}>Kelola catatan dengan satu akun Ravaa.</p>
+          <h1 className={cn("text-xl font-bold", isDark ? "text-white" : "text-white")}>{appName}</h1>
+          <p className={cn("text-sm mt-0.5", isDark ? "text-zinc-400" : "text-zinc-500")}>Manage notes with one Ravaa account.</p>
         </div>
       </div>
 
       <div className="mb-6 hidden lg:block">
-        <h1 className={cn("text-2xl font-bold", isDark ? "text-white" : "text-slate-900")}>Welcome back</h1>
-        <p className={cn("text-sm mt-1", isDark ? "text-slate-400" : "text-slate-500")}>Sign in to access your notes</p>
+        <h1 className={cn("text-2xl font-bold", isDark ? "text-white" : "text-white")}>Welcome back</h1>
+        <p className={cn("text-sm mt-1", isDark ? "text-zinc-400" : "text-zinc-500")}>Sign in to access your notes</p>
       </div>
 
       {/* Drive login — tiap app login sendiri (ala Google), tapi token pusat via ravaa-service */}
-      <p className={cn("text-xs mb-3 text-center", isDark ? "text-slate-400" : "text-slate-500")}>Login dengan akun Ravaa yang sama di semua aplikasi</p>
-      <div className={cn("mb-6 flex rounded-xl p-1", isDark ? "bg-slate-800" : "bg-slate-100")}>
+      <p className={cn("text-xs mb-3 text-center", isDark ? "text-zinc-400" : "text-zinc-500")}>Sign in with your Ravaa account on all apps</p>
+      <div className={cn("mb-6 flex rounded-xl p-1", isDark ? "bg-[#1A1A1A]" : "bg-slate-100")}>
         <button
           type="button"
           onClick={() => {
@@ -191,11 +194,11 @@ export function LoginForm() {
             "flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all",
             mode === "ravaa"
               ? isDark
-                ? "bg-slate-700 text-white shadow"
-                : "bg-white text-slate-900 shadow"
+                ? "bg-[#232323] text-white shadow"
+                : "bg-white text-white shadow"
               : isDark
-                ? "text-slate-400 hover:text-white"
-                : "text-slate-500 hover:text-slate-900"
+                ? "text-zinc-400 hover:text-white"
+                : "text-zinc-500 hover:text-white"
           )}
         >
           <Shield className="h-4 w-4" />
@@ -212,11 +215,11 @@ export function LoginForm() {
             "flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all",
             mode === "legacy"
               ? isDark
-                ? "bg-slate-700 text-white shadow"
-                : "bg-white text-slate-900 shadow"
+                ? "bg-[#232323] text-white shadow"
+                : "bg-white text-white shadow"
               : isDark
-                ? "text-slate-400 hover:text-white"
-                : "text-slate-500 hover:text-slate-900"
+                ? "text-zinc-400 hover:text-white"
+                : "text-zinc-500 hover:text-white"
           )}
         >
           <User className="h-4 w-4" />
@@ -240,11 +243,11 @@ export function LoginForm() {
       {mode === "ravaa" ? (
         <form onSubmit={handleRavaaSubmit} className="space-y-5" noValidate>
           <div>
-            <label htmlFor="identifier" className={cn("mb-1.5 block text-sm font-medium", isDark ? "text-slate-200" : "text-slate-700")}>
+            <label htmlFor="identifier" className={cn("mb-1.5 block text-sm font-medium", isDark ? "text-zinc-200" : "text-zinc-300")}>
               Email atau Username (Ravaa)
             </label>
             <div className="relative">
-              <Mail className={cn("pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2", isDark ? "text-slate-500" : "text-slate-400")} />
+              <Mail className={cn("pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2", isDark ? "text-zinc-500" : "text-zinc-400")} />
               <input
                 id="identifier"
                 type="text"
@@ -257,18 +260,18 @@ export function LoginForm() {
                 autoFocus
                 autoComplete="username"
                 placeholder="admin atau admin@ravaa.my.id"
-                className={cn(inputBase, fieldErrors.identifier && inputError, isDark ? "bg-slate-900/60" : "bg-white")}
+                className={cn(inputBase, fieldErrors.identifier && inputError, isDark ? "bg-[#141414]/60" : "bg-white")}
               />
             </div>
             {fieldErrors.identifier && <p className="mt-1.5 text-xs text-red-500">{fieldErrors.identifier}</p>}
           </div>
 
           <div>
-            <label htmlFor="ravaa-password" className={cn("mb-1.5 block text-sm font-medium", isDark ? "text-slate-200" : "text-slate-700")}>
+            <label htmlFor="ravaa-password" className={cn("mb-1.5 block text-sm font-medium", isDark ? "text-zinc-200" : "text-zinc-300")}>
               Password (Ravaa)
             </label>
             <div className="relative">
-              <Lock className={cn("pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2", isDark ? "text-slate-500" : "text-slate-400")} />
+              <Lock className={cn("pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2", isDark ? "text-zinc-500" : "text-zinc-400")} />
               <input
                 id="ravaa-password"
                 type={showRavaaPassword ? "text" : "password"}
@@ -280,7 +283,7 @@ export function LoginForm() {
                 required
                 autoComplete="current-password"
                 placeholder="••••••••"
-                className={cn(inputBase, "pr-12", fieldErrors.password && inputError, isDark ? "bg-slate-900/60" : "bg-white")}
+                className={cn(inputBase, "pr-12", fieldErrors.password && inputError, isDark ? "bg-[#141414]/60" : "bg-white")}
               />
               <button
                 type="button"
@@ -297,7 +300,7 @@ export function LoginForm() {
                 aria-label={showRavaaPassword ? "Hide password" : "Show password"}
                 className={cn(
                   "absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg p-2 transition-colors touch-manipulation",
-                  isDark ? "text-slate-400 hover:text-white hover:bg-slate-800" : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                  isDark ? "text-zinc-400 hover:text-white hover:bg-[#1A1A1A]" : "text-zinc-400 hover:text-zinc-300 hover:bg-slate-100"
                 )}
               >
                 {showRavaaPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
@@ -329,18 +332,18 @@ export function LoginForm() {
             )}
           </button>
 
-          <p className={cn("text-center text-xs", isDark ? "text-slate-500" : "text-slate-400")}>
+          <p className={cn("text-center text-xs", isDark ? "text-zinc-500" : "text-zinc-400")}>
             Hanya untuk akun terhubung (admin@ravaa.my.id). Akun belum terhubung? Hubungi administrator.
           </p>
         </form>
       ) : (
         <form onSubmit={handleLegacySubmit} className="space-y-5" noValidate>
           <div>
-            <label htmlFor="email" className={cn("mb-1.5 block text-sm font-medium", isDark ? "text-slate-200" : "text-slate-700")}>
+            <label htmlFor="email" className={cn("mb-1.5 block text-sm font-medium", isDark ? "text-zinc-200" : "text-zinc-300")}>
               Email (Drive Legacy)
             </label>
             <div className="relative">
-              <Mail className={cn("pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2", isDark ? "text-slate-500" : "text-slate-400")} />
+              <Mail className={cn("pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2", isDark ? "text-zinc-500" : "text-zinc-400")} />
               <input
                 id="email"
                 type="email"
@@ -349,17 +352,17 @@ export function LoginForm() {
                 required
                 autoComplete="email"
                 placeholder="you@example.com"
-                className={cn(inputBase, isDark ? "bg-slate-900/60" : "bg-white")}
+                className={cn(inputBase, isDark ? "bg-[#141414]/60" : "bg-white")}
               />
             </div>
           </div>
 
           <div>
-            <label htmlFor="password" className={cn("mb-1.5 block text-sm font-medium", isDark ? "text-slate-200" : "text-slate-700")}>
+            <label htmlFor="password" className={cn("mb-1.5 block text-sm font-medium", isDark ? "text-zinc-200" : "text-zinc-300")}>
               Password
             </label>
             <div className="relative">
-              <Lock className={cn("pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2", isDark ? "text-slate-500" : "text-slate-400")} />
+              <Lock className={cn("pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2", isDark ? "text-zinc-500" : "text-zinc-400")} />
               <input
                 id="password"
                 type={showPassword ? "text" : "password"}
@@ -368,7 +371,7 @@ export function LoginForm() {
                 required
                 autoComplete="current-password"
                 placeholder="••••••••"
-                className={cn(inputBase, "pr-12", isDark ? "bg-slate-900/60" : "bg-white")}
+                className={cn(inputBase, "pr-12", isDark ? "bg-[#141414]/60" : "bg-white")}
               />
               <button
                 type="button"
@@ -385,7 +388,7 @@ export function LoginForm() {
                 aria-label={showPassword ? "Hide password" : "Show password"}
                 className={cn(
                   "absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg p-2 transition-colors touch-manipulation",
-                  isDark ? "text-slate-400 hover:text-white hover:bg-slate-800" : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                  isDark ? "text-zinc-400 hover:text-white hover:bg-[#1A1A1A]" : "text-zinc-400 hover:text-zinc-300 hover:bg-slate-100"
                 )}
               >
                 {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}

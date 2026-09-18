@@ -61,7 +61,7 @@ export function Modal({ children, onClose, size = "md", className }: ModalProps)
     >
       <div
         className={cn(
-          "bg-slate-800 border border-slate-700 rounded-xl shadow-2xl w-full flex flex-col max-h-[90vh]",
+          "bg-[#1A1A1A] border border-white/[0.04] rounded-xl shadow-2xl w-full flex flex-col max-h-[90vh]",
           sizeClasses[size],
           className
         )}
@@ -85,19 +85,19 @@ export function ModalHeader({
   icon?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-700 shrink-0">
+    <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.04] shrink-0">
       <div className="flex items-center gap-2 min-w-0">
         {icon}
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-white truncate">{title}</h3>
           {subtitle && (
-            <p className="text-xs text-slate-400 truncate">{subtitle}</p>
+            <p className="text-xs text-zinc-400 truncate">{subtitle}</p>
           )}
         </div>
       </div>
       <button
         onClick={onClose}
-        className="p-1 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors shrink-0 ml-2"
+        className="p-1 text-zinc-400 hover:text-white hover:bg-[#232323] rounded-lg transition-colors shrink-0 ml-2"
       >
         <X className="w-4 h-4" />
       </button>
@@ -131,7 +131,7 @@ export function ModalFooter({
   return (
     <div
       className={cn(
-        "flex items-center justify-end gap-2 px-4 py-2.5 border-t border-slate-700 shrink-0",
+        "flex items-center justify-end gap-2 px-4 py-2.5 border-t border-white/[0.04] shrink-0",
         className
       )}
     >

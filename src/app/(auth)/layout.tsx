@@ -37,7 +37,7 @@ export default function AuthLayout({
     <div
       className={cn(
         "relative min-h-dvh w-full overflow-y-auto",
-        isDark ? "bg-slate-950" : "bg-slate-50"
+        isDark ? "bg-[#0A0A0A]" : "bg-slate-50"
       )}
     >
       {/* Decorative background orbs */}
@@ -83,7 +83,7 @@ export default function AuthLayout({
               <span
                 className={cn(
                   "text-2xl font-bold tracking-tight",
-                  isDark ? "text-white" : "text-slate-900"
+                  isDark ? "text-white" : "text-white"
                 )}
               >
                 Ravaa Drive
@@ -93,7 +93,7 @@ export default function AuthLayout({
             <h1
               className={cn(
                 "text-4xl font-bold leading-tight tracking-tight",
-                isDark ? "text-white" : "text-slate-900"
+                isDark ? "text-white" : "text-white"
               )}
             >
               Your personal cloud,
@@ -105,7 +105,7 @@ export default function AuthLayout({
             <p
               className={cn(
                 "text-base leading-relaxed",
-                isDark ? "text-slate-400" : "text-slate-500"
+                isDark ? "text-zinc-400" : "text-zinc-500"
               )}
             >
               Store, organize, and share files with full control over your data.
@@ -128,7 +128,7 @@ export default function AuthLayout({
                     <p
                       className={cn(
                         "text-sm font-semibold",
-                        isDark ? "text-slate-200" : "text-slate-800"
+                        isDark ? "text-zinc-200" : "text-zinc-200"
                       )}
                     >
                       {feature.title}
@@ -136,7 +136,7 @@ export default function AuthLayout({
                     <p
                       className={cn(
                         "text-sm",
-                        isDark ? "text-slate-500" : "text-slate-500"
+                        isDark ? "text-zinc-500" : "text-zinc-500"
                       )}
                     >
                       {feature.description}

@@ -31,6 +31,7 @@ export type NoteMinAggregateOutputType = {
   notebookId: string | null
   userId: string | null
   isPinned: boolean | null
+  isTrashed: boolean | null
   tags: string | null
   createdAt: Date | null
   updatedAt: Date | null
@@ -43,6 +44,7 @@ export type NoteMaxAggregateOutputType = {
   notebookId: string | null
   userId: string | null
   isPinned: boolean | null
+  isTrashed: boolean | null
   tags: string | null
   createdAt: Date | null
   updatedAt: Date | null
@@ -55,6 +57,7 @@ export type NoteCountAggregateOutputType = {
   notebookId: number
   userId: number
   isPinned: number
+  isTrashed: number
   tags: number
   createdAt: number
   updatedAt: number
@@ -69,6 +72,7 @@ export type NoteMinAggregateInputType = {
   notebookId?: true
   userId?: true
   isPinned?: true
+  isTrashed?: true
   tags?: true
   createdAt?: true
   updatedAt?: true
@@ -81,6 +85,7 @@ export type NoteMaxAggregateInputType = {
   notebookId?: true
   userId?: true
   isPinned?: true
+  isTrashed?: true
   tags?: true
   createdAt?: true
   updatedAt?: true
@@ -93,6 +98,7 @@ export type NoteCountAggregateInputType = {
   notebookId?: true
   userId?: true
   isPinned?: true
+  isTrashed?: true
   tags?: true
   createdAt?: true
   updatedAt?: true
@@ -178,6 +184,7 @@ export type NoteGroupByOutputType = {
   notebookId: string | null
   userId: string
   isPinned: boolean
+  isTrashed: boolean
   tags: string | null
   createdAt: Date
   updatedAt: Date
@@ -211,6 +218,7 @@ export type NoteWhereInput = {
   notebookId?: Prisma.StringNullableFilter<"Note"> | string | null
   userId?: Prisma.StringFilter<"Note"> | string
   isPinned?: Prisma.BoolFilter<"Note"> | boolean
+  isTrashed?: Prisma.BoolFilter<"Note"> | boolean
   tags?: Prisma.StringNullableFilter<"Note"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Note"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Note"> | Date | string
@@ -224,6 +232,7 @@ export type NoteOrderByWithRelationInput = {
   notebookId?: Prisma.SortOrderInput | Prisma.SortOrder
   userId?: Prisma.SortOrder
   isPinned?: Prisma.SortOrder
+  isTrashed?: Prisma.SortOrder
   tags?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -240,6 +249,7 @@ export type NoteWhereUniqueInput = Prisma.AtLeast<{
   notebookId?: Prisma.StringNullableFilter<"Note"> | string | null
   userId?: Prisma.StringFilter<"Note"> | string
   isPinned?: Prisma.BoolFilter<"Note"> | boolean
+  isTrashed?: Prisma.BoolFilter<"Note"> | boolean
   tags?: Prisma.StringNullableFilter<"Note"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Note"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Note"> | Date | string
@@ -253,6 +263,7 @@ export type NoteOrderByWithAggregationInput = {
   notebookId?: Prisma.SortOrderInput | Prisma.SortOrder
   userId?: Prisma.SortOrder
   isPinned?: Prisma.SortOrder
+  isTrashed?: Prisma.SortOrder
   tags?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -271,6 +282,7 @@ export type NoteScalarWhereWithAggregatesInput = {
   notebookId?: Prisma.StringNullableWithAggregatesFilter<"Note"> | string | null
   userId?: Prisma.StringWithAggregatesFilter<"Note"> | string
   isPinned?: Prisma.BoolWithAggregatesFilter<"Note"> | boolean
+  isTrashed?: Prisma.BoolWithAggregatesFilter<"Note"> | boolean
   tags?: Prisma.StringNullableWithAggregatesFilter<"Note"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Note"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Note"> | Date | string
@@ -282,6 +294,7 @@ export type NoteCreateInput = {
   content?: string
   userId: string
   isPinned?: boolean
+  isTrashed?: boolean
   tags?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -295,6 +308,7 @@ export type NoteUncheckedCreateInput = {
   notebookId?: string | null
   userId: string
   isPinned?: boolean
+  isTrashed?: boolean
   tags?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -306,6 +320,7 @@ export type NoteUpdateInput = {
   content?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   isPinned?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  isTrashed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   tags?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -319,6 +334,7 @@ export type NoteUncheckedUpdateInput = {
   notebookId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   isPinned?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  isTrashed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   tags?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -331,6 +347,7 @@ export type NoteCreateManyInput = {
   notebookId?: string | null
   userId: string
   isPinned?: boolean
+  isTrashed?: boolean
   tags?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -342,6 +359,7 @@ export type NoteUpdateManyMutationInput = {
   content?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   isPinned?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  isTrashed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   tags?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -354,6 +372,7 @@ export type NoteUncheckedUpdateManyInput = {
   notebookId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   isPinned?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  isTrashed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   tags?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -376,6 +395,7 @@ export type NoteCountOrderByAggregateInput = {
   notebookId?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   isPinned?: Prisma.SortOrder
+  isTrashed?: Prisma.SortOrder
   tags?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -388,6 +408,7 @@ export type NoteMaxOrderByAggregateInput = {
   notebookId?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   isPinned?: Prisma.SortOrder
+  isTrashed?: Prisma.SortOrder
   tags?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -400,6 +421,7 @@ export type NoteMinOrderByAggregateInput = {
   notebookId?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   isPinned?: Prisma.SortOrder
+  isTrashed?: Prisma.SortOrder
   tags?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -451,16 +473,13 @@ export type BoolFieldUpdateOperationsInput = {
   set?: boolean
 }
 
-export type NullableStringFieldUpdateOperationsInput = {
-  set?: string | null
-}
-
 export type NoteCreateWithoutNotebookInput = {
   id?: string
   title: string
   content?: string
   userId: string
   isPinned?: boolean
+  isTrashed?: boolean
   tags?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -472,6 +491,7 @@ export type NoteUncheckedCreateWithoutNotebookInput = {
   content?: string
   userId: string
   isPinned?: boolean
+  isTrashed?: boolean
   tags?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -512,6 +532,7 @@ export type NoteScalarWhereInput = {
   notebookId?: Prisma.StringNullableFilter<"Note"> | string | null
   userId?: Prisma.StringFilter<"Note"> | string
   isPinned?: Prisma.BoolFilter<"Note"> | boolean
+  isTrashed?: Prisma.BoolFilter<"Note"> | boolean
   tags?: Prisma.StringNullableFilter<"Note"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Note"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Note"> | Date | string
@@ -523,6 +544,7 @@ export type NoteCreateManyNotebookInput = {
   content?: string
   userId: string
   isPinned?: boolean
+  isTrashed?: boolean
   tags?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -534,6 +556,7 @@ export type NoteUpdateWithoutNotebookInput = {
   content?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   isPinned?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  isTrashed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   tags?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -545,6 +568,7 @@ export type NoteUncheckedUpdateWithoutNotebookInput = {
   content?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   isPinned?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  isTrashed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   tags?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -556,6 +580,7 @@ export type NoteUncheckedUpdateManyWithoutNotebookInput = {
   content?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   isPinned?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  isTrashed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   tags?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -570,6 +595,7 @@ export type NoteSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   notebookId?: boolean
   userId?: boolean
   isPinned?: boolean
+  isTrashed?: boolean
   tags?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -583,6 +609,7 @@ export type NoteSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   notebookId?: boolean
   userId?: boolean
   isPinned?: boolean
+  isTrashed?: boolean
   tags?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -596,6 +623,7 @@ export type NoteSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   notebookId?: boolean
   userId?: boolean
   isPinned?: boolean
+  isTrashed?: boolean
   tags?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -609,12 +637,13 @@ export type NoteSelectScalar = {
   notebookId?: boolean
   userId?: boolean
   isPinned?: boolean
+  isTrashed?: boolean
   tags?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type NoteOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "title" | "content" | "notebookId" | "userId" | "isPinned" | "tags" | "createdAt" | "updatedAt", ExtArgs["result"]["note"]>
+export type NoteOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "title" | "content" | "notebookId" | "userId" | "isPinned" | "isTrashed" | "tags" | "createdAt" | "updatedAt", ExtArgs["result"]["note"]>
 export type NoteInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   notebook?: boolean | Prisma.Note$notebookArgs<ExtArgs>
 }
@@ -637,6 +666,7 @@ export type $NotePayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     notebookId: string | null
     userId: string
     isPinned: boolean
+    isTrashed: boolean
     tags: string | null
     createdAt: Date
     updatedAt: Date
@@ -1070,6 +1100,7 @@ export interface NoteFieldRefs {
   readonly notebookId: Prisma.FieldRef<"Note", 'String'>
   readonly userId: Prisma.FieldRef<"Note", 'String'>
   readonly isPinned: Prisma.FieldRef<"Note", 'Boolean'>
+  readonly isTrashed: Prisma.FieldRef<"Note", 'Boolean'>
   readonly tags: Prisma.FieldRef<"Note", 'String'>
   readonly createdAt: Prisma.FieldRef<"Note", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"Note", 'DateTime'>
