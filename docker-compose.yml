@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    image: ravaa-notes:latest
+    restart: unless-stopped
+    ports:
+      - "2715:2715"
+    env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ravaa_notes_data:/app/data
+volumes:
+  ravaa_notes_data:
