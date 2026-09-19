@@ -71,6 +71,25 @@ export async function POST(req: NextRequest) {
     const note = await prisma.note.findUnique({ where: { id: noteId } });
     if (!note || note.userId !== user.id) return NextResponse.json({ success: false, error: "Invalid noteId" }, { status: 403 });
   }
+  // Quota check (HOME): tanya Service + Drive, blokir jika penuh
+  try {
+    const svcUrlRaw = (process.env.RAVAA_SERVICE_URL || "http://localhost:2711").replace(/\/$/, "");
+    const svcRes = await fetch(`${svcUrlRaw}/api/v1/me/storage`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+    if (svcRes.ok) {
+      const sData: any = await svcRes.json().catch(() => null);
+      const limit = Number(sData?.storage?.limit || sData?.limit || 5368709120);
+      // Coba ambil used dari Drive storage-stats (jika Drive hidup)
+      try {
+        const statsRes = await fetch(`${DRIVE_URL}/api/files/storage-stats`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+        if (statsRes.ok) {
+          const stats: any = await statsRes.json().catch(() => null);
+          const used = Number(stats?.data?.used || stats?.used || 0);
+          const fileSize = Number((file as any).size || 0);
+          if (used + fileSize > limit) return NextResponse.json({ success: false, error: "Storage quota exceeded" }, { status: 413 });
+        }
+      } catch {}
+    }
+  } catch {}
 
   const svcUrl = DRIVE_URL;
   // Cari/bikin folder Ravaa Notes
@@ -111,7 +130,7 @@ export async function POST(req: NextRequest) {
 
   const text = await res.text();
   let data: any = null;
-  try { data = text ? JSON.parse(text) : null; } catch { return NextResponse.json({ success: false, error: `Drive response not JSON (${res.status}): ${text.slice(0,200)}` }, { status: 502 }); }
-  if (!res.ok) return NextResponse.json({ success: false, error: data?.error || `Drive ${res.status}` }, { status: res.status });
+  try { data = text ? JSON.parse(text) : null; } catch { return NextResponse.json({ success: false, error: "Drive error" }, { status: 502 }); }
+  if (!res.ok) return NextResponse.json({ success: false, error: data?.error || "Drive upload failed" }, { status: res.status });
   return NextResponse.json(data);
 }

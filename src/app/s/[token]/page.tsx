@@ -335,7 +335,7 @@ export default function SharedNotePage() {
     ...defaultSchema,
     attributes: {
       ...defaultSchema.attributes,
-      span: [...(defaultSchema.attributes?.span || []), ["style", /^color:\s*(#[0-9a-fA-F]{3,6}|rgb\(.*\)|rgba\(.*\))$/]],
+      span: [...(defaultSchema.attributes?.span || []), ["style", /^color:\s*#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?\s*$/]],
       sup: [], sub: [],
       code: [...(defaultSchema.attributes?.code || []), ["className", /^language-.*$/]],
     },
