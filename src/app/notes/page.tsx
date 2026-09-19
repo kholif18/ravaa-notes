@@ -48,6 +48,7 @@ export default function NotesPage() {
     return historyMapRef.get(noteId)!;
   };
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [confirmNotebookDelete, setConfirmNotebookDelete] = useState<string | null>(null);
   const [showNewNotebookPrompt, setShowNewNotebookPrompt] = useState(false);
   const [editingNotebook, setEditingNotebook] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
@@ -1098,6 +1099,21 @@ Seperti Joplin Welcome Notebook, note ini adalah panduan default yang otomatis d
         onConfirm={() => confirmDelete && permanentDel(confirmDelete)}
         onCancel={() => setConfirmDelete(null)}
       />
+      <ConfirmDialog
+        open={!!confirmNotebookDelete}
+        title="Hapus notebook?"
+        description="Notebook akan dihapus. Note di dalamnya akan dipindahkan ke All Notes dan sub-notebook naik satu level."
+        confirmText="Hapus"
+        variant="danger"
+        onConfirm={async () => {
+          if (!confirmNotebookDelete) return;
+          await fetch(`/api/notebooks/${confirmNotebookDelete}`, { method: "DELETE", credentials: "include" });
+          setConfirmNotebookDelete(null);
+          if (activeNotebook === confirmNotebookDelete) setActiveNotebook(null);
+          load();
+        }}
+        onCancel={() => setConfirmNotebookDelete(null)}
+      />
       <PromptDialog
         open={showNewNotebookPrompt}
         title="New notebook name"
@@ -1134,7 +1150,7 @@ Seperti Joplin Welcome Notebook, note ini adalah panduan default yang otomatis d
         <div className="fixed z-50 bg-[#1A1A1A] border border-white/[0.04] rounded-lg shadow-xl py-1 min-w-[180px]" style={{ left: contextMenu.x, top: contextMenu.y }} onMouseLeave={() => setContextMenu(null)}>
           <button onClick={() => { const nb = notebooks.find((n:any)=>n.id===contextMenu.id); if (nb) { setEditingName(nb.name); setEditingNotebook(nb.id); } setContextMenu(null); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-[#232323]">Rename</button>
           <button onClick={() => { const target = notebooks.find((n:any)=>n.id===contextMenu.id) as any; if (target?.parentId) { const gp = notebooks.find((n:any)=>n.id===target.parentId); if (gp?.parentId) { alert("Maximum depth"); return; } } setNewNotebookParent(contextMenu.id); setShowNewNotebookPrompt(true); setContextMenu(null); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-[#232323]">New Sub-notebook</button>
-          <button onClick={async () => { if (!confirm("Hapus notebook? Note di dalamnya jadi All Notes")) return; await fetch(`/api/notebooks/${contextMenu.id}`, { method: "DELETE", credentials: "include" }); setContextMenu(null); load(); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-red-900/50 text-red-400">Delete</button>
+          <button onClick={() => { setConfirmNotebookDelete(contextMenu.id); setContextMenu(null); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-red-900/50 text-red-400">Delete</button>
         </div>
       )}
       {contextMenu && <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} />}
