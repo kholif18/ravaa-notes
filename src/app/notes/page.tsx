@@ -507,11 +507,11 @@ Seperti Joplin Welcome Notebook, note ini adalah panduan default yang otomatis d
             />
           ) : (
             <button
-              onClick={() => { setActiveNotebook(nb.id); setShowTrash(false); }}
+              onClick={() => { setActiveNotebook(nb.id); setShowTrash(false); setFilterPinned(false); }}
               onContextMenu={(e) => { e.preventDefault(); setContextMenu({ id: nb.id, x: e.clientX, y: e.clientY }); }}
               draggable
               onDragStart={(e) => { e.dataTransfer.setData("text/notebook", nb.id); e.stopPropagation(); }}
-              className={`flex-1 text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${isActive && !showTrash ? "bg-blue-600 text-white" : "hover:bg-[#1A1A1A] text-zinc-300"}`}
+              className={`flex-1 text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${isActive && !showTrash && !filterPinned ? "bg-blue-600 text-white" : "hover:bg-[#1A1A1A] text-zinc-300"}`}
             >
               <span className="w-2 h-2 rounded-full shrink-0 ml-0" style={{background: nb.color}}></span>
               <span className="truncate flex-1">{nb.name}</span>
@@ -638,18 +638,16 @@ Seperti Joplin Welcome Notebook, note ini adalah panduan default yang otomatis d
           onDrop={(e) => handleNotebookDrop(e, null)}
           className={`rounded ${dragOverNotebook==="root" ? "ring-2 ring-zinc-500/20 bg-zinc-800/20" : ""}`}
         >
-          <button onClick={() => { setActiveNotebook(null); setShowTrash(false); }} className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${!activeNotebook && !showTrash ? "bg-blue-600 text-white" : "hover:bg-[#1A1A1A] text-zinc-300"}`}><span>All Notes</span><span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-white/10 text-zinc-400">{notes.length}</span></button>
+          <button onClick={() => { setActiveNotebook(null); setShowTrash(false); setFilterPinned(false); }} className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${!activeNotebook && !showTrash && !filterPinned ? "bg-blue-600 text-white" : "hover:bg-[#1A1A1A] text-zinc-300"}`}><span>All Notes</span><span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-white/10 text-zinc-400">{notes.length}</span></button>
         </div>
         <div className="mt-2 space-y-1 flex-1 overflow-y-auto min-h-0 pr-1">
           {tree.length===0 ? <p className="text-xs text-zinc-500">No notebooks</p> : renderNotebook(tree)}
         </div>
         <button onClick={() => setShowNewNotebookPrompt(true)} className="mt-4 w-full px-2 py-1.5 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323] flex items-center gap-1 justify-center"><Plus className="w-3 h-3" /> New Notebook</button>
-        {/* File manager style: Trash sebagai folder, klik Trash = masuk sampah, klik Notebooks/All Notes = keluar sampah */}
-        <div className="mt-2 pt-2 border-t border-white/[0.04]">
-          <button onClick={() => setShowTrash(true)} className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${showTrash ? "bg-red-600 text-white" : "hover:bg-[#1A1A1A] text-zinc-400 hover:text-zinc-200"}`}><Trash2 className="w-4 h-4" /> Trash</button>
-        </div>
-        <div className="mt-4 pt-4 border-t border-white/[0.03]">
-          <button onClick={() => setFilterPinned(!filterPinned)} className={`w-full px-2 py-1.5 rounded text-xs flex items-center gap-1 font-medium ${filterPinned ? "bg-blue-600 text-white" : "bg-[#1A1A1A] text-zinc-300 hover:bg-[#232323] hover:text-white"}`}><Star className="w-3 h-3" /> {filterPinned ? "★ Pinned" : "☆ All Notes"}</button>
+        {/* File manager style: Trash & Pinned sebagai folder, klik = masuk halaman, klik notebook lain = keluar */}
+        <div className="mt-2 pt-2 border-t border-white/[0.04] space-y-1">
+          <button onClick={() => { setFilterPinned(true); setShowTrash(false); setActiveNotebook(null); }} className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${filterPinned && !showTrash ? "bg-amber-500 text-white" : "hover:bg-[#1A1A1A] text-zinc-400 hover:text-zinc-200"}`}><Star className="w-4 h-4" /> Pinned</button>
+          <button onClick={() => { setShowTrash(true); setFilterPinned(false); }} className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${showTrash ? "bg-red-600 text-white" : "hover:bg-[#1A1A1A] text-zinc-400 hover:text-zinc-200"}`}><Trash2 className="w-4 h-4" /> Trash</button>
         </div>
       </div>
 
