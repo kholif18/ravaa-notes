@@ -1,11 +1,13 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
-import { Plus, Search, BookOpen, StickyNote, Pin, Trash2, Share2, Bold, Italic, Heading1, Heading2, Heading3, List, ListOrdered, Code, Eye, Edit3, Tag, Star, Image as ImageIcon, Music, LogOut, ArrowRightLeft, FolderInput, ArrowRight, ArrowLeft } from "lucide-react";
+import { Plus, Search, BookOpen, StickyNote, Pin, Trash2, Share2, Bold, Italic, Heading1, Heading2, Heading3, List, ListOrdered, Code, Eye, Edit3, Tag, Star, Image as ImageIcon, Music, LogOut, ArrowRightLeft, FolderInput, ArrowRight, ArrowLeft, ChevronRight, PanelLeft, ChevronDown } from "lucide-react";
 import { MoveNoteDialog } from "@/components/ui/move-note-dialog";
 import { ShareDialog } from "@/components/notes/share-note-dialog";
 import { ConfirmDialog, PromptDialog } from "@/components/ui/confirm-dialog";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 
 export default function NotesPage() {
   const [notes, setNotes] = useState<any[]>([]);
@@ -19,6 +21,22 @@ export default function NotesPage() {
   const [filterPinned, setFilterPinned] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
   const [tagsInput, setTagsInput] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sortBy, setSortBy] = useState<"updated" | "created" | "titleAsc" | "titleDesc">("updated");
+  const [noteCounts, setNoteCounts] = useState<Record<string, number>>({});
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [selectedColor, setSelectedColor] = useState("#ef4444");
+  const sanitizeSchema = {
+    ...defaultSchema,
+    attributes: {
+      ...defaultSchema.attributes,
+      span: [...(defaultSchema.attributes?.span || []), ["style", /^color:\s*(#[0-9a-fA-F]{3,6}|rgb\(.*\)|rgba\(.*\))$/]],
+      sup: [],
+      sub: [],
+      code: [...(defaultSchema.attributes?.code || []), ["className", /^language-.*$/]],
+    },
+    tagNames: [...(defaultSchema.tagNames || []), "sup", "sub", "span"],
+  } as any;
   const historyMapRef = useState(() => new Map<string, { stack: string[]; index: number; isUndoRedo?: boolean }>())[0] as Map<string, { stack: string[]; index: number; isUndoRedo?: boolean }>;
   const [historyVersion, setHistoryVersion] = useState(0);
   const getHistory = (noteId: string) => {
@@ -47,12 +65,120 @@ export default function NotesPage() {
     if (search) q.set("q", search);
     if (filterPinned) q.set("pinned", "true");
     if (showTrash) q.set("trash", "true");
-    const [nRes, nbRes] = await Promise.all([
+    const [nRes, nbRes, countRes] = await Promise.all([
       fetch(`/api/notes?${q}`, { credentials: "include" }).then(r => r.json()).catch(() => ({ data: { notes: [] } })),
       fetch("/api/notebooks", { credentials: "include" }).then(r => r.json()).catch(() => ({ data: { lists: [] } })),
+      fetch(`/api/notes`, { credentials: "include" }).then(r => r.json()).catch(() => ({ data: { notes: [] } })),
     ]);
     if (nRes.success) setNotes(nRes.data.notes);
     if (nbRes.success) setNotebooks(nbRes.data.lists);
+    if (countRes.success) {
+      const map: Record<string, number> = {};
+      (countRes.data.notes as any[]).forEach((n: any) => {
+        if (n.notebookId) map[n.notebookId] = (map[n.notebookId] || 0) + 1;
+      });
+      setNoteCounts(map);
+    }
+    
+    // Auto-seed jika user pertama kali (kosong)
+    if (nRes.success && nbRes.success && nRes.data.notes.length === 0 && nbRes.data.lists.length === 0) {
+      await seedDefaultContent();
+      // Reload after seed
+      const [nRes2, nbRes2, cRes2] = await Promise.all([
+        fetch(`/api/notes`, { credentials: "include" }).then(r => r.json()).catch(() => ({ data: { notes: [] } })),
+        fetch("/api/notebooks", { credentials: "include" }).then(r => r.json()).catch(() => ({ data: { lists: [] } })),
+        fetch(`/api/notes`, { credentials: "include" }).then(r => r.json()).catch(() => ({ data: { notes: [] } })),
+      ]);
+      if (nRes2.success) setNotes(nRes2.data.notes);
+      if (nbRes2.success) setNotebooks(nbRes2.data.lists);
+      if (cRes2.success) {
+        const map: Record<string, number> = {};
+        (cRes2.data.notes as any[]).forEach((n: any) => {
+          if (n.notebookId) map[n.notebookId] = (map[n.notebookId] || 0) + 1;
+        });
+        setNoteCounts(map);
+      }
+    }
+  }
+  
+  async function seedDefaultContent() {
+    // Create "Ravaa Link Note" notebook
+    const nbRes = await fetch("/api/notebooks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ name: "Ravaa Link Note", color: "#3b82f6" }),
+    });
+    const nbData = await nbRes.json();
+    if (!nbData.success) return;
+    const notebookId = nbData.data.list.id;
+    
+    // Create welcome note
+    const welcomeContent = `# Welcome to Ravaa Notes
+
+Ravaa Notes adalah aplikasi catatan berbasis Markdown yang terintegrasi dengan ekosistem Ravaa.
+
+## Fitur Utama
+
+- **Markdown Support**: Bold, italic, heading, list, code block, table, dan lainnya
+- **Notebooks**: Organisasi catatan dalam notebook (maksimal 2 level)
+- **Tags**: Tag untuk kategorisasi lintas notebook
+- **Internal Links**: Link antar catatan dengan \`[[Nama Note]]\`
+- **Image & Audio**: Upload gambar/audio via Drive (folder "Ravaa Notes/")
+- **Share**: Bagikan catatan via link publik (PRIVATE/FAMILY/LINK + password + expiry)
+- **Task List**: - [ ] Checklist interaktif di preview mode
+- **Search**: Cari catatan berdasarkan judul, konten, atau tags
+- **Undo/Redo**: History stack per-note (Ctrl+Z / Ctrl+Y)
+- **Auto-continue**: Enter otomatis lanjutkan bullet/numbered/task list dengan indent
+
+## Toolbar Editor
+
+| Tombol | Fungsi |
+|--------|--------|
+| Bold, Italic, ~~Strike~~ | Format teks |
+| H1, H2, H3 | Heading level 1-3 |
+| List, 1., Task | Bullet list, numbered list, checkbox |
+| Quote, HR, Code | Blockquote, horizontal rule, code block |
+| Link, [[Link]], Image | External link, internal link, upload gambar |
+| →, ←, ↩, ↪ | Indent, outdent, undo, redo |
+
+## Keyboard Shortcuts
+
+- **Ctrl+Z**: Undo
+- **Ctrl+Y** atau **Ctrl+Shift+Z**: Redo
+- **Enter**: Auto-continue list/task (Enter di baris kosong = stop marker)
+- **Tab**: Indent 2 spasi
+
+## Share Options
+
+1. **PRIVATE**: Hanya owner
+2. **FAMILY**: Shared ke keluarga (butuh login Ravaa Account)
+3. **LINK**: Link publik dengan token aman (43 char), opsional password + expiry + maxViews
+
+## Tips
+
+- Klik checkbox di preview mode → toggle tanpa masuk edit mode
+- Drag & drop note ke notebook untuk pindah
+- Right-click notebook untuk rename/delete/add sub-notebook
+- Pin note penting agar selalu di atas
+- Gunakan tags untuk quick filtering (contoh: \`work, personal, urgent\`)
+
+---
+
+**Selamat mencatat!**`;
+
+    await fetch("/api/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        title: "Ravaa Link Note",
+        content: welcomeContent,
+        notebookId: notebookId,
+        tags: "welcome,guide",
+        isPinned: true,
+      }),
+    });
   }
   useEffect(() => { load(); }, [activeNotebook, search, filterPinned, showTrash]);
   useEffect(() => {
@@ -68,36 +194,142 @@ export default function NotesPage() {
     }
   }, [selected]);
 
+  // Joplin-style: migrasi legacy "Contoh Joplin — Ravaa Notes" -> "Ravaa Notes" / "Ravaa Link Note"
+  // + auto-rename note isi "Test Hello" jadi guide
+  useEffect(() => {
+    if (!notes.length) return;
+    const legacy = notes.find((n: any) =>
+      n.title === "Contoh Joplin — Ravaa Notes" ||
+      n.title === "Contoh Joplin" ||
+      n.title.includes("Contoh Joplin")
+    );
+    if (legacy) {
+      const isTestHello = !legacy.content || legacy.content.trim() === "Test" || legacy.content.trim() === "Hello" || legacy.content.trim() === "Test\nHello" || legacy.content.trim() === "Test Hello";
+      const targetTitle = isTestHello ? "Ravaa Link Note" : "Ravaa Notes";
+      if (legacy.title !== targetTitle) {
+        fetch(`/api/notes/${legacy.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(isTestHello ? {
+            title: targetTitle,
+            content: `# Ravaa Link Note
+
+Selamat datang di **Ravaa Notes** — Joplin-style notes untuk ekosistem Ravaa.
+
+## Apa itu Ravaa Link Note?
+Seperti Joplin Welcome Notebook, note ini adalah **panduan default** yang otomatis dibuat saat akun pertama kali mengakses Ravaa Notes. Notebook **Ravaa Link Note** berisi guideline cara pakai.
+
+## Cara Pakai Cepat
+
+### 1. Struktur Joplin
+- **Notebook** = folder (kiri, bisa nested 2 level, drag & drop)
+- **Note** = dokumen markdown (tengah)
+- **Preview/Editor** = kanan (toggle preview, toolbar markdown)
+
+### 2. Toolbar Markdown (sama kayak Joplin)
+Bold, Italic, H1-H3, List, Numbered, Task, Quote, Link, HR, Code, Table, [[Internal Link]], Image
+
+### 3. Task List
+\`\`\`
+- [ ] Buat project toko
+- [x] Setup Ravaa Notes (selesai)
+- [ ] Share ke pelanggan via LINK
+\`\`\`
+Klik checkbox di **preview** untuk toggle selesai (auto striketrough + auto-save).
+
+### 4. Share (PRIVATE/FAMILY/LINK)
+- PRIVATE: hanya owner
+- FAMILY: butuh login Ravaa Account
+- LINK: token 43 char + password + expiry, buka via /s/{token} tanpa login
+
+### 5. Fitur Joplin yang diadopsi di Header
+- **Search global** (header tengah) — cari title/content/tags
+- **Sort** — Updated, Created, Title A-Z/Z-A (pinned selalu di atas, kayak Joplin)
+- **Sidebar collapse** — Joplin toggle notebooks
+- **Breadcrumbs** — path notebook aktif
+
+### 6. Tips Joplin
+- Drag note ke notebook untuk pindah
+- Right-click notebook/ note untuk context menu
+- Pin note penting
+- Gunakan tags untuk filter
+- Undo/Redo (Ctrl+Z / Ctrl+Y) + auto-continue Enter untuk list
+
+---
+Hapus note ini setelah paham, atau jadikan template untuk share ke pelanggan toko via LINK.`
+          } : { title: targetTitle }),
+        }).then(() => load());
+      } else if (isTestHello && legacy.content.trim().length < 50) {
+        fetch(`/api/notes/${legacy.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ content: `# Ravaa Link Note
+
+Selamat datang di **Ravaa Notes** — Joplin-style notes untuk ekosistem Ravaa.
+
+## Apa itu Ravaa Link Note?
+Seperti Joplin Welcome Notebook, note ini adalah panduan default yang otomatis dibuat saat akun pertama kali mengakses Ravaa Notes.` }),
+        }).then(() => load());
+      }
+    }
+  }, [notes]);
+
   async function create() {
     const res = await fetch("/api/notes", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ title: "Untitled", content: "", notebookId: activeNotebook, tags: "" }) });
     const data = await res.json();
     if (data.success) { load(); setSelected(data.data.note); }
   }
+  const [saveStatus, setSaveStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
   async function save() {
     if (!selected) return;
-    await fetch(`/api/notes/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ title, content, tags: tagsInput }) });
-    load();
+    setSaveStatus(null);
+    try {
+      const res = await fetch(`/api/notes/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ title, content, tags: tagsInput }) });
+      const data = await res.json();
+      if (data.success) {
+        setSaveStatus({ type: "success", message: "Note saved successfully" });
+        load();
+      } else {
+        setSaveStatus({ type: "error", message: data.error || "Failed to save note" });
+      }
+    } catch (e: any) {
+      setSaveStatus({ type: "error", message: e.message || "Failed to save note" });
+    }
+    setTimeout(() => setSaveStatus(null), 3000);
   }
 
-  function toggleTaskInPreview(index: number) {
+  function toggleTaskInPreview(lineNumber: number) {
     const lines = content.split("\n");
-    let taskIdx = -1;
-    const newLines = lines.map((line) => {
-      if (/^\s*- \[[ x]\]/i.test(line)) {
-        taskIdx++;
-        if (taskIdx === index) {
-          if (/^\s*- \[ \]/i.test(line)) return line.replace(/\[ \]/, "[x]");
-          else return line.replace(/\[x\]/i, "[ ]");
-        }
+    const idx = lineNumber - 1; // 1-indexed to 0-indexed
+    if (idx >= 0 && idx < lines.length) {
+      let line = lines[idx];
+      if (/^\s*(?:[-*+]|\d+\.)\s*\[ \]/i.test(line)) {
+        lines[idx] = line.replace(/\[ \]/, "[x]");
+      } else if (/^\s*(?:[-*+]|\d+\.)\s*\[[xX]\]/.test(line)) {
+        lines[idx] = line.replace(/\[[xX]\]/, "[ ]");
       }
-      return line;
-    });
-    const newContent = newLines.join("\n");
+    }
+    const newContent = lines.join("\n");
     setContent(newContent);
+    if (selected) {
+      setSelected((prev: any) => (prev ? { ...prev, content: newContent } : prev));
+      const h = getHistory(selected.id);
+      h.stack = h.stack.slice(0, h.index + 1);
+      h.stack.push(newContent);
+      h.index = h.stack.length - 1;
+    }
     // auto save
     setTimeout(async () => {
       if (selected) {
-        await fetch(`/api/notes/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ content: newContent }) });
+        await fetch(`/api/notes/${selected.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ content: newContent }),
+        });
         load();
       }
     }, 100);
@@ -197,7 +429,20 @@ export default function NotesPage() {
     }, 0);
   }
 
-  const filtered = useMemo(() => notes, [notes]);
+  const filtered = useMemo(() => {
+    const sorted = [...notes];
+    sorted.sort((a: any, b: any) => {
+      // Joplin-style: updated, created, title
+      if (sortBy === "updated") return new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime();
+      if (sortBy === "created") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      if (sortBy === "titleAsc") return (a.title || "").localeCompare(b.title || "");
+      if (sortBy === "titleDesc") return (b.title || "").localeCompare(a.title || "");
+      return 0;
+    });
+    // pinned first (Joplin: pinned notes on top)
+    sorted.sort((a: any, b: any) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0));
+    return sorted;
+  }, [notes, sortBy]);
 
   // Build notebook tree
   const tree = useMemo(() => {
@@ -232,8 +477,12 @@ export default function NotesPage() {
           onDragOverCapture={(e) => e.preventDefault()}
           className={`rounded flex items-center gap-1 ${dragOverNotebook===nb.id ? "ring-2 ring-zinc-500/20 bg-zinc-800/20" : ""}`}
         >
-          <button onClick={(e) => { e.stopPropagation(); if (hasChildren) toggleExpand(nb.id); }} className={`w-4 h-4 flex items-center justify-center shrink-0 -ml-1 bg-transparent ${hasChildren ? "text-zinc-400 hover:text-white" : "invisible"}`}>
-            <span className={`inline-block transition-transform text-[10px] ${isExpanded ? "rotate-90" : ""}`}>▶</span>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); if (hasChildren) toggleExpand(nb.id); }}
+            className={`w-4 h-4 flex items-center justify-center shrink-0 -ml-1 bg-transparent border-0 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none select-none ${hasChildren ? "text-zinc-400 hover:text-white" : "invisible"}`}
+          >
+            <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-150 ${isExpanded ? "rotate-90" : ""}`} />
           </button>
           {editingNotebook === nb.id ? (
             <input
@@ -257,15 +506,15 @@ export default function NotesPage() {
             />
           ) : (
             <button
-              onClick={() => setActiveNotebook(nb.id)}
+              onClick={() => { setActiveNotebook(nb.id); setShowTrash(false); }}
               onContextMenu={(e) => { e.preventDefault(); setContextMenu({ id: nb.id, x: e.clientX, y: e.clientY }); }}
               draggable
               onDragStart={(e) => { e.dataTransfer.setData("text/notebook", nb.id); e.stopPropagation(); }}
-              className={`flex-1 text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${isActive ? "bg-blue-600 text-white" : "hover:bg-[#1A1A1A] text-zinc-300"}`}
+              className={`flex-1 text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${isActive && !showTrash ? "bg-blue-600 text-white" : "hover:bg-[#1A1A1A] text-zinc-300"}`}
             >
               <span className="w-2 h-2 rounded-full shrink-0 ml-0" style={{background: nb.color}}></span>
               <span className="truncate flex-1">{nb.name}</span>
-            {(() => { const c = notes.filter((n:any) => n.notebookId === nb.id).length; return c > 0 ? <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.12] text-zinc-300 border border-white/10">{c}</span> : null; })()}
+            {(() => { const c = noteCounts[nb.id] || 0; return c > 0 ? <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.12] text-zinc-300 border border-white/10">{c}</span> : null; })()}
               {nb.children?.length > 0 && <span className="text-[10px] px-1 rounded bg-[#232323]">{nb.children.length}</span>}
             </button>
           )}
@@ -320,15 +569,67 @@ export default function NotesPage() {
 
   return (
     <div className="h-screen flex flex-col bg-[#0A0A0A] text-white overflow-hidden">
-      <div className="h-11 border-b border-white/[0.02] flex items-center justify-between px-3 glass-strong shrink-0">
-        <span className="font-semibold">Ravaa Notes</span>
-        <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST", credentials: "include" }); try { localStorage.removeItem("ravaa_token"); } catch {} ; location.href = "/login"; }} className="text-xs px-3 py-1.5 rounded bg-[#1A1A1A] hover:bg-[#232323] flex items-center gap-1"><LogOut className="w-3 h-3" /> Logout</button>
+      <div className="h-11 border-b border-white/[0.02] flex items-center gap-3 px-3 glass-strong shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className={`p-1.5 rounded hover:bg-[#1A1A1A] text-zinc-400 hover:text-white transition-colors ${!sidebarOpen ? "bg-[#1A1A1A] text-white" : ""}`}
+            title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+          >
+            <PanelLeft className="w-4 h-4" />
+          </button>
+          <span className="font-semibold text-sm whitespace-nowrap">Ravaa Notes</span>
+        </div>
+        {/* Joplin-style: global search di header (center) */}
+        <div className="flex-1 flex justify-center max-w-md mx-auto hidden sm:flex">
+          <div className="relative w-full">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500 pointer-events-none" />
+            <input
+              value={search}
+              onChange={e=>setSearch(e.target.value)}
+              onKeyDown={e=>{ if (e.key==='Escape') setSearch(""); }}
+              placeholder="Search notes… (title / content / tags)"
+              className="w-full pl-8 pr-7 py-1.5 text-sm bg-[#141414] border border-white/[0.06] rounded-lg focus:outline-none focus:border-blue-500/50 focus:bg-[#1A1A1A] placeholder:text-zinc-500"
+            />
+            {search && (
+              <button onClick={() => setSearch("")} className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-white/10 text-zinc-400 hover:text-white">
+                <span className="w-3 h-3 flex items-center justify-center text-xs">×</span>
+              </button>
+            )}
+          </div>
+        </div>
+        {/* Joplin-style: sort + actions */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <div className="hidden sm:flex items-center gap-1.5">
+            <select
+              value={sortBy}
+              onChange={e=>setSortBy(e.target.value as any)}
+              title="Sort notes — Joplin style"
+              className="px-2 py-1.5 text-xs bg-[#141414] border border-white/[0.06] rounded-lg text-zinc-300 focus:outline-none focus:border-blue-500/50"
+            >
+              <option value="updated">Updated ↓</option>
+              <option value="created">Created ↓</option>
+              <option value="titleAsc">Title A-Z</option>
+              <option value="titleDesc">Title Z-A</option>
+            </select>
+            <button onClick={create} title="New note (Joplin: + Note)" className="p-1.5 bg-blue-600 rounded-lg hover:bg-blue-700 text-white"><Plus className="w-4 h-4" /></button>
+          </div>
+          <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST", credentials: "include" }); try { localStorage.removeItem("ravaa_token"); } catch {} ; location.href = "/login"; }} className="text-xs px-3 py-1.5 rounded-lg bg-[#1A1A1A] hover:bg-[#232323] flex items-center gap-1 border border-white/[0.04]"><LogOut className="w-3 h-3" /> <span className="hidden sm:inline">Logout</span></button>
+        </div>
       </div>
       <div className="flex flex-1 overflow-hidden min-h-0">
-      <div className="w-60 border-r border-white/[0.02] p-3 hidden md:flex flex-col glass h-full overflow-hidden shrink-0 sticky top-0">
+      <div className={`transition-all duration-200 flex flex-col glass h-full shrink-0 sticky top-0 ${sidebarOpen ? "w-60 p-3 border-r border-white/[0.02] overflow-hidden" : "w-0 p-0 border-0 overflow-hidden opacity-0 pointer-events-none"}`}>
         <div className="flex items-center justify-between">
           <h2 className="font-semibold flex items-center gap-2"><BookOpen className="w-4 h-4" /> Notebooks</h2>
-          <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST", credentials: "include" }); try { localStorage.removeItem("ravaa_token"); } catch {} ; location.href = "/login"; }} className="p-1.5 text-zinc-400 hover:text-white hover:bg-[#1A1A1A] rounded" title="Logout"><LogOut className="w-4 h-4" /></button>
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(false)}
+            className="p-1.5 text-zinc-400 hover:text-white hover:bg-[#1A1A1A] rounded transition-colors"
+            title="Collapse sidebar"
+          >
+            <PanelLeft className="w-4 h-4" />
+          </button>
         </div>
         <div
           onDragOver={(e) => handleNotebookDragOver(e, null)}
@@ -336,14 +637,15 @@ export default function NotesPage() {
           onDrop={(e) => handleNotebookDrop(e, null)}
           className={`rounded ${dragOverNotebook==="root" ? "ring-2 ring-zinc-500/20 bg-zinc-800/20" : ""}`}
         >
-          <button onClick={() => setActiveNotebook(null)} className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${!activeNotebook ? "bg-blue-600 text-white" : "hover:bg-[#1A1A1A] text-zinc-300"}`}><span>All Notes</span><span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-white/10 text-zinc-400">{notes.length}</span></button>
+          <button onClick={() => { setActiveNotebook(null); setShowTrash(false); }} className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${!activeNotebook && !showTrash ? "bg-blue-600 text-white" : "hover:bg-[#1A1A1A] text-zinc-300"}`}><span>All Notes</span><span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-white/10 text-zinc-400">{notes.length}</span></button>
         </div>
         <div className="mt-2 space-y-1 flex-1 overflow-y-auto min-h-0 pr-1">
           {tree.length===0 ? <p className="text-xs text-zinc-500">No notebooks</p> : renderNotebook(tree)}
         </div>
         <button onClick={() => setShowNewNotebookPrompt(true)} className="mt-4 w-full px-2 py-1.5 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323] flex items-center gap-1 justify-center"><Plus className="w-3 h-3" /> New Notebook</button>
-        <div className="mt-2">
-          <button onClick={() => setShowTrash(!showTrash)} className={`w-full px-2 py-1.5 rounded text-xs flex items-center gap-1 ${showTrash ? "bg-red-600 text-white" : "bg-[#1A1A1A] text-zinc-300 hover:bg-[#232323]"}`}><Trash2 className="w-3 h-3" /> {showTrash ? "Trash" : "Trash"}</button>
+        {/* File manager style: Trash sebagai folder, klik Trash = masuk sampah, klik Notebooks/All Notes = keluar sampah */}
+        <div className="mt-2 pt-2 border-t border-white/[0.04]">
+          <button onClick={() => setShowTrash(true)} className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${showTrash ? "bg-red-600 text-white" : "hover:bg-[#1A1A1A] text-zinc-400 hover:text-zinc-200"}`}><Trash2 className="w-4 h-4" /> Trash</button>
         </div>
         <div className="mt-4 pt-4 border-t border-white/[0.03]">
           <button onClick={() => setFilterPinned(!filterPinned)} className={`w-full px-2 py-1.5 rounded text-xs flex items-center gap-1 font-medium ${filterPinned ? "bg-blue-600 text-white" : "bg-[#1A1A1A] text-zinc-300 hover:bg-[#232323] hover:text-white"}`}><Star className="w-3 h-3" /> {filterPinned ? "★ Pinned" : "☆ All Notes"}</button>
@@ -377,18 +679,6 @@ export default function NotesPage() {
             </div>
           );
         })()}
-        <div className="p-3 border-b border-white/[0.02] flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500" />
-            <input value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>{ if (e.key==='Escape') setSearch(""); }} placeholder="Search title/content..." className="w-full pl-7 pr-7 py-1.5 text-sm bg-[#141414] border border-white/[0.04] rounded" />
-            {search && (
-              <button onClick={() => setSearch("")} className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white">
-                <span className="w-3 h-3 flex items-center justify-center">×</span>
-              </button>
-            )}
-          </div>
-          <button onClick={create} className="p-1.5 bg-blue-600 rounded hover:bg-blue-700"><Plus className="w-4 h-4" /></button>
-        </div>
         <div className="flex-1 overflow-y-auto min-h-0">
           {filtered.length===0 ? <p className="p-4 text-sm text-zinc-500">{showTrash ? "Trash kosong" : "No notes"}</p> : filtered.map((n:any)=>(
             <div key={n.id} draggable onDragStart={(e)=>handleDragStart(e, n.id)} onClick={()=>{setSelected(n); setShowPreview(true);}} onContextMenu={(e)=>{e.preventDefault(); e.stopPropagation(); setNoteContextMenu({ id: n.id, x: e.clientX, y: e.clientY });}} className={`p-2.5 border-b border-white/[0.02] cursor-pointer hover:bg-white/5 ${selected?.id===n.id ? "bg-white/10" : ""}`}>
@@ -423,6 +713,11 @@ export default function NotesPage() {
               <input value={title} onChange={e=>setTitle(e.target.value)} className="flex-1 min-w-[150px] px-2 py-1.5 text-sm bg-[#141414] border border-white/[0.04] rounded font-medium" placeholder="Title" />
               <input value={tagsInput} onChange={e=>setTagsInput(e.target.value)} placeholder="tags, comma" className="w-32 px-2 py-1.5 text-xs bg-[#141414] border border-white/[0.04] rounded" />
               <button onClick={save} className="px-3 py-1.5 text-xs bg-blue-600 rounded hover:bg-blue-700">Save</button>
+              {saveStatus && (
+                <span className={`text-xs px-2 py-1 rounded ${saveStatus.type === "success" ? "bg-green-900/30 text-green-300" : "bg-red-900/30 text-red-300"}`}>
+                  {saveStatus.message}
+                </span>
+              )}
               <div className="flex gap-1 flex-wrap">
                 {(tagsInput.split(",").map((t:string)=>t.trim()).filter(Boolean) as string[]).map((tag:string) => (
                   <span key={tag} className="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 flex items-center gap-1">
@@ -459,6 +754,37 @@ export default function NotesPage() {
               }} title="Table" className="px-2 py-1 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323]">Table</button>
               <button onClick={()=>insertAtCursor("[[", "]]")} title="Internal Link [[Note]]" className="px-2 py-1 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323]">[[Link]]</button>
               <button onClick={handleImageInsert} title="Image/Audio" className="px-2 py-1 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323] flex items-center gap-1"><ImageIcon className="w-3 h-3" /> Image</button>
+              <button onClick={()=>insertAtCursor("<sup>", "</sup>")} title="Superscript x² (Joplin)" className="px-2 py-1 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323]">x<sup>2</sup></button>
+              <button onClick={()=>insertAtCursor("<sub>", "</sub>")} title="Subscript x₂ (Joplin)" className="px-2 py-1 text-xs bg-[#1A1A1A] rounded hover:bg-[#232323]">x<sub>2</sub></button>
+              <div className="relative">
+                <button
+                  onClick={()=>setShowColorPicker(!showColorPicker)}
+                  title="Font color — LibreOffice Writer style"
+                  className={`px-1.5 py-1 rounded flex items-center gap-0.5 border ${showColorPicker ? "bg-[#232323] border-white/20" : "bg-[#1A1A1A] border-transparent hover:bg-[#232323] hover:border-white/10"}`}
+                >
+                  <span className="flex flex-col items-center leading-none">
+                    <span className="font-serif font-bold text-[15px] leading-none">A</span>
+                    <span className="w-5 h-[3px] rounded-sm mt-[1px] border border-white/20" style={{background:selectedColor}} />
+                  </span>
+                  <ChevronDown className="w-3 h-3 text-zinc-400 ml-0.5" />
+                </button>
+                {showColorPicker && (
+                  <div className="absolute top-full mt-1 left-0 p-2 bg-[#1A1A1A] border border-white/10 rounded-lg z-50 shadow-xl min-w-[148px]">
+                    <div className="grid grid-cols-6 gap-1.5">
+                      {["#000000","#ef4444","#f97316","#eab308","#22c55e","#06b6d4","#3b82f6","#a855f7","#ec4899","#6b7280","#ffffff","#991b1b"].map(c=>(
+                        <button key={c} onClick={()=>{ setSelectedColor(c); insertAtCursor(`<span style="color:${c}">`, `</span>`); setShowColorPicker(false); }} className={`w-6 h-6 rounded-sm border hover:scale-105 transition-transform ${selectedColor===c ? "border-white ring-1 ring-white/40" : "border-white/15"}`} style={{background:c}} title={c} />
+                      ))}
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-white/10 flex items-center justify-between">
+                      <span className="text-[10px] text-zinc-400">Custom</span>
+                      <label className="relative w-6 h-6 rounded-sm border border-white/15 bg-[#232323] cursor-pointer overflow-hidden flex items-center justify-center hover:border-white/30">
+                        <input type="color" value={selectedColor} className="opacity-0 absolute inset-0 cursor-pointer" onChange={e=>{ setSelectedColor(e.target.value); insertAtCursor(`<span style="color:${e.target.value}">`, `</span>`); setShowColorPicker(false); }} />
+                        <span className="w-3 h-3 rounded-sm border border-white/30" style={{background:selectedColor}} />
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
               <button onClick={()=>{
                 const ta = document.getElementById("note-content") as HTMLTextAreaElement;
                 if (!ta) return;
@@ -542,6 +868,7 @@ export default function NotesPage() {
               <div className="flex-1 p-4 overflow-auto prose prose-invert max-w-none bg-[#0A0A0A] prose-p:whitespace-pre-wrap prose-p:break-words prose-p:break-all prose-pre:bg-[#141414] prose-pre:whitespace-pre-wrap prose-pre:break-words prose-pre:overflow-hidden prose-code:whitespace-pre-wrap prose-code:break-words prose-code:break-all prose-code:text-zinc-200 prose-pre:text-zinc-200 prose-a:text-blue-400 prose-a:break-words prose-a:whitespace-pre-wrap prose-a:break-all prose-headings:text-white prose-strong:text-white prose-blockquote:border-l-blue-500 prose-li:has-[input:checked]:line-through prose-li:has-[input:checked]:text-zinc-500">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
                   components={{
                     a: ({ children, href, ...props }: any) => {
                       if (href?.startsWith("#internal:")) {
@@ -569,14 +896,44 @@ export default function NotesPage() {
                     img: ({ src, alt, ...props }: any) => (
                       <img src={src} alt={alt} {...props} className="max-w-full rounded-lg border border-white/[0.04]" loading="lazy" />
                     ),
-                    code: ({ children, className, ...props }: any) => {
-                  const isInline = !className || !String(className).includes("language-");
-                  if (isInline) {
-                    return <code className="bg-[#1A1A1A] text-amber-300 px-1 py-0.5 rounded text-sm break-words" {...props}>{children}</code>;
-                  }
-                  return <code className={String(className) + " bg-transparent p-0"} {...props}>{children}</code>;
-                },
-                    p: ({ children, ...props }: any) => {
+                    input: ({ type, checked, node, ...props }: any) => {
+                      if (type === "checkbox") {
+                        return null;
+                      }
+                      return <input type={type} {...props} />;
+                    },
+                    li: ({ children, node, ...props }: any) => {
+                      const firstChild: any = node?.children?.[0];
+                      const isTask = firstChild?.tagName === "input" && firstChild?.properties?.type === "checkbox";
+                      if (isTask) {
+                        const lineNumber: number | undefined = node?.position?.start?.line;
+                        const isChecked = Boolean(firstChild.properties.checked);
+                        const filteredChildren = Array.isArray(children) ? (children as any[]).filter(Boolean) : children;
+                        return (
+                          <li className="flex items-start gap-2 list-none" {...props}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                if (lineNumber) toggleTaskInPreview(lineNumber);
+                              }}
+                              className="mt-1 cursor-pointer accent-blue-600 w-4 h-4 flex-shrink-0"
+                              aria-label="Toggle task"
+                            />
+                            <span className={`break-words whitespace-pre-wrap flex-1 ${isChecked ? "line-through text-zinc-500" : ""}`}>{filteredChildren}</span>
+                          </li>
+                        );
+                      }
+                      return <li className="break-words whitespace-pre-wrap" {...props}>{children}</li>;
+                    },
+                    code: ({ children, className, node, ...props }: any) => {
+                      const isInline = !className || !String(className).includes("language-");
+                      if (isInline) {
+                        return <code className="bg-[#1A1A1A] text-amber-300 px-1 py-0.5 rounded text-sm break-words" {...props}>{children}</code>;
+                      }
+                      return <code className={String(className) + " bg-transparent p-0"} {...props}>{children}</code>;
+                    },
+                    p: ({ children, node, ...props }: any) => {
                       const text = String(children);
                       if (typeof text === "string" && (text.startsWith("→ ") || text.startsWith("  ") || text.startsWith("\u00a0") || text.startsWith("\u200B"))) {
                         const clean = text.replace(/^→\s*/, "").replace(/^\u200B\s*/, "").replace(/^\u00a0+/, "").replace(/^  /, "").trimStart();
@@ -584,12 +941,12 @@ export default function NotesPage() {
                       }
                       return <p className="break-words whitespace-pre-wrap" {...props}>{children}</p>;
                     },
-                                    pre: ({ children, ...props }: any) => (
-                  <div className="relative group">
-                    <pre className="bg-[#141414] p-3 rounded-lg overflow-auto whitespace-pre-wrap break-words break-all" {...props}>{children}</pre>
-                    <button onClick={() => navigator.clipboard.writeText(String((children as any)?.props?.children || children))} className="absolute top-2 right-2 px-2 py-1 text-xs bg-[#232323] hover:bg-[#2a2a2a] rounded opacity-0 group-hover:opacity-100">Copy</button>
-                  </div>
-                ),
+                    pre: ({ children, node, ...props }: any) => (
+                      <div className="relative group">
+                        <pre className="bg-[#141414] p-3 rounded-lg overflow-auto whitespace-pre-wrap break-words break-all" {...props}>{children}</pre>
+                        <button onClick={() => navigator.clipboard.writeText(String((children as any)?.props?.children || children))} className="absolute top-2 right-2 px-2 py-1 text-xs bg-[#232323] hover:bg-[#2a2a2a] rounded opacity-0 group-hover:opacity-100">Copy</button>
+                      </div>
+                    ),
                   }}
                 >
                   {(content || "*No content*").replace(/\[\[(.+?)\]\]/g, (m: string, p1: string) => `[${p1.trim()}](#internal:${encodeURIComponent(p1.trim())})`)}

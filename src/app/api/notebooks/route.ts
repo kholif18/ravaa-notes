@@ -39,6 +39,23 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json();
   const { id, name, color, parentId } = body;
   if (!id) return NextResponse.json({ success: false, error: "id required" }, { status: 400 });
-  const nb = await prisma.notebook.update({ where: { id }, data: { name, color, parentId } });
+  const existing = await prisma.notebook.findUnique({ where: { id } });
+  if (!existing || existing.userId !== user.id) return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
+  if (parentId !== undefined) {
+    if (parentId) {
+      if (String(parentId) === id) return NextResponse.json({ success: false, error: "Tidak bisa pindah ke diri sendiri" }, { status: 400 });
+      const parent = await prisma.notebook.findUnique({ where: { id: String(parentId) } });
+      if (!parent || parent.userId !== user.id) return NextResponse.json({ success: false, error: "Parent not found" }, { status: 404 });
+      if (parent.parentId) {
+        const grandparent = await prisma.notebook.findUnique({ where: { id: parent.parentId } });
+        if (grandparent?.parentId) return NextResponse.json({ success: false, error: "Maximum depth reached" }, { status: 400 });
+      }
+    }
+  }
+  const data: any = {};
+  if (name !== undefined) data.name = String(name).slice(0, 100);
+  if (color !== undefined) data.color = String(color).slice(0, 20);
+  if (parentId !== undefined) data.parentId = parentId ? String(parentId) : null;
+  const nb = await prisma.notebook.update({ where: { id }, data });
   return NextResponse.json({ success: true, data: { notebook: nb } });
 }

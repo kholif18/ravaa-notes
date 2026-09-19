@@ -25,8 +25,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!existing || existing.userId !== user.id) return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
   const body = await request.json();
   const data: any = {};
-  if (body.title !== undefined) data.title = String(body.title).trim() || "Untitled";
-  if (body.content !== undefined) data.content = String(body.content);
+  if (body.title !== undefined) data.title = String(body.title).trim().slice(0, 200) || "Untitled";
+  if (body.content !== undefined) data.content = String(body.content).slice(0, 100000);
   if (body.notebookId !== undefined) {
     if (body.notebookId === null || body.notebookId === "") data.notebookId = null;
     else {
@@ -36,7 +36,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
   }
   if (body.isPinned !== undefined) data.isPinned = Boolean(body.isPinned);
-  if (body.tags !== undefined) data.tags = body.tags ? String(body.tags) : null;
+  if (body.tags !== undefined) data.tags = body.tags ? String(body.tags).slice(0, 500) : null;
   const note = await prisma.note.update({ where: { id }, data });
   return NextResponse.json({ success: true, data: { note } });
 }

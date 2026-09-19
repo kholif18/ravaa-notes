@@ -10,20 +10,17 @@
  * Standalone file (no prisma import) so middleware can use it safely.
  */
 export function isSecureRequest(headers: Headers): boolean {
-  // In production, assume HTTPS when behind trusted proxy (Cloudflare).
-  // Only trust x-forwarded-proto if present; otherwise default to secure in production
-  // to prevent downgrade via header spoofing on direct connections.
+  const trusted = process.env.TRUSTED_PROXY === "1" || process.env.CF_TRUSTED === "1";
   const proto = headers.get("x-forwarded-proto");
   if (proto) {
-    // Proxies may append multiple values; the first is the client's hop.
-    // Validate strictly: only exact "https" is considered secure.
+    if (!trusted) {
+      // Jangan trust header jika tidak di belakang proxy tepercaya → cegah spoof
+      return process.env.NODE_ENV === "production";
+    }
     const first = proto.split(",")[0].trim().toLowerCase();
     if (first === "https") return true;
     if (first === "http") return false;
-    // Unknown value → treat as not secure (fail closed)
     return false;
   }
-  // No header: in production, assume secure (behind Cloudflare terminates TLS),
-  // in development, assume not secure to allow http://192.168.x.x access.
   return process.env.NODE_ENV === "production";
 }

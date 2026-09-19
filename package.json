@@ -12,6 +12,7 @@
     "@libsql/client": "^0.18.0",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
+    "deepmerge-ts": "^8.0.0",
     "dotenv": "^17.4.2",
     "jose": "^6.2.12",
     "lucide-react": "^1.47.0",
@@ -19,6 +20,8 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-markdown": "^10.1.0",
+    "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.7.0"
   },
@@ -35,5 +38,8 @@
     "prisma": "^7.9.1",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.0"
   }
 }

@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { getUserFromRavaa, getTokenFromHeader } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+const DRIVE_URL = (process.env.RAVAA_DRIVE_URL || process.env.NEXT_PUBLIC_DRIVE_URL || "http://localhost:2713").replace(/\/$/, "");
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10MB ala Joplin attachment
+const ALLOWED_MIMES = new Set([
+  "image/jpeg","image/png","image/gif","image/webp","image/svg+xml",
+  "audio/mpeg","audio/wav","audio/ogg","audio/mp3","audio/webm",
+  "video/mp4","video/webm",
+]);
 
 async function findOrCreateRavaaNotesFolder(token: string): Promise<string | null> {
-  const svcUrl = "http://localhost:2713";
+  const svcUrl = DRIVE_URL;
   const headers = { Authorization: `Bearer ${token}` } as any;
   // Cari folder Ravaa Notes di root via /api/files?folderId=root (Drive list API)
   try {
@@ -49,8 +59,20 @@ export async function POST(req: NextRequest) {
   const file = form.get("file") as File | null;
   const noteId = form.get("noteId") as string | null;
   if (!file) return NextResponse.json({ success: false, error: "No file" }, { status: 400 });
+  if ((file as any).size > MAX_UPLOAD_BYTES) return NextResponse.json({ success: false, error: "File too large (max 10MB)" }, { status: 413 });
+  const mime = (file as any).type || "";
+  if (mime && !ALLOWED_MIMES.has(mime) && !mime.startsWith("image/")) {
+    return NextResponse.json({ success: false, error: `File type not allowed: ${mime}` }, { status: 415 });
+  }
+  // Verify note ownership jika noteId dikirim (cegah upload ke folder note orang lain)
+  if (noteId) {
+    const user = await getUserFromRavaa(token);
+    if (!user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    const note = await prisma.note.findUnique({ where: { id: noteId } });
+    if (!note || note.userId !== user.id) return NextResponse.json({ success: false, error: "Invalid noteId" }, { status: 403 });
+  }
 
-  const svcUrl = "http://localhost:2713";
+  const svcUrl = DRIVE_URL;
   // Cari/bikin folder Ravaa Notes
   let folderId: string | null = null;
   try {

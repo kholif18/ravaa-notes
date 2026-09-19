@@ -14,9 +14,10 @@ export async function GET(req: NextRequest) {
     if (!user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     const { searchParams } = new URL(req.url);
     const notebookId = searchParams.get("notebookId");
-    const q = searchParams.get("q")?.trim();
+    const qRaw = searchParams.get("q")?.trim() || "";
+    const q = qRaw.slice(0, 100);
     const pinned = searchParams.get("pinned");
-    const tag = searchParams.get("tag");
+    const tag = (searchParams.get("tag") || "").slice(0, 50);
     const trash = searchParams.get("trash");
     const where: any = { userId: user.id };
     if (trash === "true") where.isTrashed = true;
@@ -25,7 +26,6 @@ export async function GET(req: NextRequest) {
     if (pinned === "true") where.isPinned = true;
     if (tag) where.tags = { contains: tag };
     if (q) {
-      // For SQLite, contains is case-sensitive by default, but ok
       where.OR = [
         { title: { contains: q } },
         { content: { contains: q } },
@@ -43,6 +43,13 @@ export async function POST(req: NextRequest) {
   const user = await requireAuth(req);
   if (!user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   const body = await req.json();
-  const note = await prisma.note.create({ data: { title: body.title || "Untitled", content: body.content || "", notebookId: body.notebookId || null, userId: user.id, tags: body.tags || null, isPinned: body.isPinned || false } });
+  const title = String(body.title || "Untitled").slice(0, 200);
+  const content = String(body.content || "").slice(0, 100000);
+  const tags = body.tags ? String(body.tags).slice(0, 500) : null;
+  if (body.notebookId) {
+    const nb = await prisma.notebook.findUnique({ where: { id: String(body.notebookId) } });
+    if (!nb || nb.userId !== user.id) return NextResponse.json({ success: false, error: "Invalid notebook" }, { status: 400 });
+  }
+  const note = await prisma.note.create({ data: { title: title || "Untitled", content, notebookId: body.notebookId || null, userId: user.id, tags, isPinned: Boolean(body.isPinned) } });
   return NextResponse.json({ success: true, data: { note } });
 }
